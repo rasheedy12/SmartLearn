@@ -1,7 +1,7 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "Register";
-include 'includes/header.php';
+include '../includes/header.php';
 ?>
 
 <div class="auth-wrapper">
@@ -29,7 +29,7 @@ include 'includes/header.php';
             // }
             ?>
 
-            <form action="<?php echo BASE_URL; ?>auth_handlers/handle_register.php" method="POST">
+            <form action="<?php echo BASE_URL; ?>auth/handle_register.php" method="POST">
                 <div class="d-grid gap-2 mb-3">
                     <button type="button" class="btn btn-social"><i class="fab fa-google"></i> Sign up with Google</button>
                     <button type="button" class="btn btn-social"><i class="fab fa-microsoft"></i> Sign up with Microsoft</button>
@@ -77,4 +77,4 @@ include 'includes/header.php';
     </div>
 </div>
 
-<?php include 'includes/footer.php'; ?>
+<?php include '../includes/footer.php'; ?>

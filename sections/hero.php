@@ -8,7 +8,7 @@
         </div>
         <div class="mt-5">
             <div class="img-placeholder mx-auto" style="width: 100%; max-width: 700px; height: 400px;">
-                 <img src="<?php echo BASE_URL; ?>images/Student-dash.png" 
+                 <img src="<?php echo BASE_URL; ?>assets/images/Student-dash.png" 
                       alt="App Screenshot" 
                       class="img-fluid rounded shadow-lg"
                       onerror="this.style.display='none'; this.parentElement.innerHTML = 'App Screenshot Placeholder (700x400)';">

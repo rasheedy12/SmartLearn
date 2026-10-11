@@ -1,14 +1,14 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "User Management";
 $_SESSION['user_role'] = 'admin';
-include 'includes/dashboard_header.php';
+include '../includes/dashboard_header.php';
 
 $users_data = [
-    ['id' => 1, 'name' => 'John Student', 'avatar' => BASE_URL . 'images/student.jpg', 'email' => 'student@example.com', 'role' => 'Student', 'status' => 'Active', 'joined_date' => '2025-01-15'],
-    ['id' => 2, 'name' => 'Dr. Sarah Chen', 'avatar' => BASE_URL . 'images/instructor.jpg', 'email' => 'instructor@example.com', 'role' => 'Instructor', 'status' => 'Active', 'joined_date' => '2024-11-20'],
-    ['id' => 3, 'name' => 'Admin User', 'avatar' => BASE_URL . 'images/admin.jpg', 'email' => 'admin@example.com', 'role' => 'Admin', 'status' => 'Active', 'joined_date' => '2024-10-01'],
-    ['id' => 104, 'name' => 'Mike Davis (Suspended)', 'avatar' => BASE_URL . 'images/student.jpg', 'email' => 'mike.inactive@example.com', 'role' => 'Student', 'status' => 'Suspended', 'joined_date' => '2025-03-01'],
+    ['id' => 1, 'name' => 'John Student', 'avatar' => BASE_URL . 'assets/images/student.jpg', 'email' => 'student@example.com', 'role' => 'Student', 'status' => 'Active', 'joined_date' => '2025-01-15'],
+    ['id' => 2, 'name' => 'Dr. Sarah Chen', 'avatar' => BASE_URL . 'assets/images/instructor.jpg', 'email' => 'instructor@example.com', 'role' => 'Instructor', 'status' => 'Active', 'joined_date' => '2024-11-20'],
+    ['id' => 3, 'name' => 'Admin User', 'avatar' => BASE_URL . 'assets/images/admin.jpg', 'email' => 'admin@example.com', 'role' => 'Admin', 'status' => 'Active', 'joined_date' => '2024-10-01'],
+    ['id' => 104, 'name' => 'Mike Davis (Suspended)', 'avatar' => BASE_URL . 'assets/images/student.jpg', 'email' => 'mike.inactive@example.com', 'role' => 'Student', 'status' => 'Suspended', 'joined_date' => '2025-03-01'],
 ];
 ?>
 <div class="container-fluid">
@@ -49,7 +49,7 @@ $users_data = [
                     <tbody>
                         <?php foreach($users_data as $user): ?>
                         <tr>
-                            <td><img src="<?php echo htmlspecialchars($user['avatar']); ?>" alt="<?php echo htmlspecialchars($user['name']); ?>" class="rounded-circle" style="width: 32px; height: 32px; object-fit: cover;" onerror="this.src='<?php echo BASE_URL; ?>images/user_avatar_placeholder.png'"></td>
+                            <td><img src="<?php echo htmlspecialchars($user['avatar']); ?>" alt="<?php echo htmlspecialchars($user['name']); ?>" class="rounded-circle" style="width: 32px; height: 32px; object-fit: cover;" onerror="this.src='<?php echo BASE_URL; ?>assets/images/user_avatar_placeholder.png'"></td>
                             <td><strong><?php echo htmlspecialchars($user['name']); ?></strong></td>
                             <td><?php echo htmlspecialchars($user['email']); ?></td>
                             <td><?php echo htmlspecialchars($user['role']); ?></td>
@@ -96,4 +96,4 @@ $users_data = [
         </div>
     </div>
 </div>
-<?php include 'includes/dashboard_footer.php'; ?>
+<?php include '../includes/dashboard_footer.php'; ?>

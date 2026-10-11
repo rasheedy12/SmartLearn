@@ -1,13 +1,13 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "My Courses (Instructor)";
 $_SESSION['user_role'] = 'instructor';
-include 'includes/dashboard_header.php';
+include '../includes/dashboard_header.php';
 
 $instructor_courses_list = [
-    ["id" => 1, "title" => "Computer Science Fundamentals", "students" => 89, "status" => "Published", "avg_completion" => 70, "img" => BASE_URL . "images/course_placeholders/cs_fundamentals.jpg", "last_updated" => "2025-05-28"],
-    ["id" => 2, "title" => "Web Development Bootcamp", "students" => 156, "status" => "Published", "avg_completion" => 85, "img" => BASE_URL . "images/course_placeholders/web_dev_bootcamp.jpg", "last_updated" => "2025-06-01"],
-    ["id" => 5, "title" => "Advanced JavaScript Techniques", "students" => 0, "status" => "Draft", "avg_completion" => 0, "img" => BASE_URL . "images/course_placeholders/advanced_js.jpg", "last_updated" => "2025-06-02"],
+    ["id" => 1, "title" => "Computer Science Fundamentals", "students" => 89, "status" => "Published", "avg_completion" => 70, "img" => BASE_URL . "assets/images/course_placeholders/cs_fundamentals.jpg", "last_updated" => "2025-05-28"],
+    ["id" => 2, "title" => "Web Development Bootcamp", "students" => 156, "status" => "Published", "avg_completion" => 85, "img" => BASE_URL . "assets/images/course_placeholders/web_dev_bootcamp.jpg", "last_updated" => "2025-06-01"],
+    ["id" => 5, "title" => "Advanced JavaScript Techniques", "students" => 0, "status" => "Draft", "avg_completion" => 0, "img" => BASE_URL . "assets/images/course_placeholders/advanced_js.jpg", "last_updated" => "2025-06-02"],
 ];
 ?>
 <div class="container-fluid">
@@ -70,4 +70,4 @@ $instructor_courses_list = [
     </div>
     <?php endif; ?>
 </div>
-<?php include 'includes/dashboard_footer.php'; ?>
+<?php include '../includes/dashboard_footer.php'; ?>

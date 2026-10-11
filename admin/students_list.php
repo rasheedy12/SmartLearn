@@ -1,16 +1,16 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "My Students";
 $_SESSION['user_role'] = 'instructor';
-include 'includes/dashboard_header.php';
+include '../includes/dashboard_header.php';
 
 // Mock: $course_id = isset($_GET['course_id']) ? intval($_GET['course_id']) : null;
 // Fetch students for this instructor, optionally filtered by course_id
 $students_data = [
-    ['id' => 101, 'name' => 'Alice Johnson', 'avatar' => BASE_URL . 'images/avatars/student_1.png', 'email' => 'alice@example.com', 'enrolled_course' => 'Web Development Bootcamp', 'progress' => 75, 'last_login' => '2025-06-01'],
-    ['id' => 102, 'name' => 'Bob Williams', 'avatar' => BASE_URL . 'images/avatars/student_2.png', 'email' => 'bob@example.com', 'enrolled_course' => 'Web Development Bootcamp', 'progress' => 50, 'last_login' => '2025-05-28'],
-    ['id' => 103, 'name' => 'Carol Davis', 'avatar' => BASE_URL . 'images/avatars/student_3.png', 'email' => 'carol@example.com', 'enrolled_course' => 'Computer Science Fundamentals', 'progress' => 90, 'last_login' => '2025-06-02'],
-    ['id' => 104, 'name' => 'David Miller', 'avatar' => BASE_URL . 'images/user_avatar_placeholder.png', 'email' => 'david@example.com', 'enrolled_course' => 'Web Development Bootcamp', 'progress' => 20, 'last_login' => '2025-05-15'],
+    ['id' => 101, 'name' => 'Alice Johnson', 'avatar' => BASE_URL . 'assets/images/avatars/student_1.png', 'email' => 'alice@example.com', 'enrolled_course' => 'Web Development Bootcamp', 'progress' => 75, 'last_login' => '2025-06-01'],
+    ['id' => 102, 'name' => 'Bob Williams', 'avatar' => BASE_URL . 'assets/images/avatars/student_2.png', 'email' => 'bob@example.com', 'enrolled_course' => 'Web Development Bootcamp', 'progress' => 50, 'last_login' => '2025-05-28'],
+    ['id' => 103, 'name' => 'Carol Davis', 'avatar' => BASE_URL . 'assets/images/avatars/student_3.png', 'email' => 'carol@example.com', 'enrolled_course' => 'Computer Science Fundamentals', 'progress' => 90, 'last_login' => '2025-06-02'],
+    ['id' => 104, 'name' => 'David Miller', 'avatar' => BASE_URL . 'assets/images/user_avatar_placeholder.png', 'email' => 'david@example.com', 'enrolled_course' => 'Web Development Bootcamp', 'progress' => 20, 'last_login' => '2025-05-15'],
 ];
 ?>
 <div class="container-fluid">
@@ -50,7 +50,7 @@ $students_data = [
                     <tbody>
                         <?php foreach($students_data as $student): ?>
                         <tr>
-                            <td><img src="<?php echo htmlspecialchars($student['avatar']); ?>" alt="<?php echo htmlspecialchars($student['name']); ?>" class="rounded-circle" style="width: 32px; height: 32px; object-fit: cover;" onerror="this.src='<?php echo BASE_URL; ?>images/user_avatar_placeholder.png'"></td>
+                            <td><img src="<?php echo htmlspecialchars($student['avatar']); ?>" alt="<?php echo htmlspecialchars($student['name']); ?>" class="rounded-circle" style="width: 32px; height: 32px; object-fit: cover;" onerror="this.src='<?php echo BASE_URL; ?>assets/images/user_avatar_placeholder.png'"></td>
                             <td><strong><?php echo htmlspecialchars($student['name']); ?></strong></td>
                             <td><?php echo htmlspecialchars($student['email']); ?></td>
                             <td><?php echo htmlspecialchars($student['enrolled_course']); ?></td>
@@ -84,5 +84,5 @@ $students_data = [
         </div>
     </div>
 </div>
-<?php include 'includes/dashboard_footer.php'; ?>
+<?php include '../includes/dashboard_footer.php'; ?>
 

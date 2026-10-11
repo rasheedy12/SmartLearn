@@ -1,8 +1,8 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "My Assignments";
 $_SESSION['user_role'] = 'student';
-include 'includes/dashboard_header.php';
+include '../includes/dashboard_header.php';
 
 $assignments_data = [
     ['course' => 'JavaScript Fundamentals', 'title' => 'Quiz 4: Functions', 'due_date' => '2025-06-10', 'status' => 'Pending', 'type' => 'Quiz', 'link' => '#'],
@@ -80,4 +80,4 @@ $assignments_data = [
         </div>
     </div>
 </div>
-<?php include 'includes/dashboard_footer.php'; ?>
+<?php include '../includes/dashboard_footer.php'; ?>

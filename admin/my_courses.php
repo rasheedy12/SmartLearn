@@ -1,14 +1,14 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "My Courses";
 $_SESSION['user_role'] = 'student';
-include 'includes/dashboard_header.php';
+include '../includes/dashboard_header.php';
 
 $my_courses_data = [
-    ["id" => 1, "abbr" => "JS", "title" => "JavaScript Fundamentals", "instructor" => "Dr. Sarah Chen", "progress" => 65, "bg_color" => "bg-primary", "next_lesson" => "Functions & Scope", "img" => BASE_URL . "images/js.png"],
-    ["id" => 2, "abbr" => "UX", "title" => "UX Design Principles", "instructor" => "Mike Davis", "progress" => 32, "bg_color" => "bg-success", "next_lesson" => "User Research", "img" => BASE_URL . "images/ux.jpg"],
-    ["id" => 3, "abbr" => "PY", "title" => "Python for Data Science", "instructor" => "Dr. Emily White", "progress" => 88, "bg_color" => "bg-info", "next_lesson" => "Final Project Submission", "img" => BASE_URL . "images/py.jpeg"],
-    ["id" => 4, "abbr" => "MK", "title" => "Digital Marketing Essentials", "instructor" => "Johnathan Lee", "progress" => 15, "bg_color" => "bg-warning text-dark", "next_lesson" => "Intro to SEO", "img" => BASE_URL . "images/dme.jpeg"],
+    ["id" => 1, "abbr" => "JS", "title" => "JavaScript Fundamentals", "instructor" => "Dr. Sarah Chen", "progress" => 65, "bg_color" => "bg-primary", "next_lesson" => "Functions & Scope", "img" => BASE_URL . "assets/images/js.png"],
+    ["id" => 2, "abbr" => "UX", "title" => "UX Design Principles", "instructor" => "Mike Davis", "progress" => 32, "bg_color" => "bg-success", "next_lesson" => "User Research", "img" => BASE_URL . "assets/images/ux.jpg"],
+    ["id" => 3, "abbr" => "PY", "title" => "Python for Data Science", "instructor" => "Dr. Emily White", "progress" => 88, "bg_color" => "bg-info", "next_lesson" => "Final Project Submission", "img" => BASE_URL . "assets/images/py.jpeg"],
+    ["id" => 4, "abbr" => "MK", "title" => "Digital Marketing Essentials", "instructor" => "Johnathan Lee", "progress" => 15, "bg_color" => "bg-warning text-dark", "next_lesson" => "Intro to SEO", "img" => BASE_URL . "assets/images/dme.jpeg"],
 ];
 ?>
 <div class="container-fluid">
@@ -46,4 +46,4 @@ $my_courses_data = [
         </div>
     <?php endif; ?>
 </div>
-<?php include 'includes/dashboard_footer.php'; ?>
+<?php include '../includes/dashboard_footer.php'; ?>

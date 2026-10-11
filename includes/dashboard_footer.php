@@ -16,7 +16,7 @@
     <?php endforeach; endif; ?>
     <?php if (isset($use_charts) && $use_charts): ?>
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-        <script src="<?php echo BASE_URL_INC; ?>js/dashboard_charts.js"></script>
+        <script src="<?php echo BASE_URL_INC; ?>assets/js/dashboard_charts.js"></script>
     <?php endif;?>
 </body>
 </html>

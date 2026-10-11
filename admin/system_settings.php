@@ -1,8 +1,8 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "System Settings";
 $_SESSION['user_role'] = 'admin';
-include 'includes/dashboard_header.php';
+include '../includes/dashboard_header.php';
 
 // Mock current settings
 $settings = [
@@ -94,4 +94,4 @@ $settings = [
     </div>
     </form>
 </div>
-<?php include 'includes/dashboard_footer.php'; ?>
+<?php include '../includes/dashboard_footer.php'; ?>

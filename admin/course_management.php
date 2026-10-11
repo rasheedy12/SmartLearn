@@ -1,8 +1,8 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "Course Management";
 $_SESSION['user_role'] = 'admin';
-include 'includes/dashboard_header.php';
+include '../includes/dashboard_header.php';
 
 $all_platform_courses = [
     ['id' => 1, 'title' => 'JavaScript Fundamentals', 'instructor' => 'Dr. Sarah Chen', 'category' => 'Web Development', 'students' => 5300, 'status' => 'Published', 'rating' => 4.8],
@@ -96,4 +96,4 @@ $all_platform_courses = [
         </div>
     </div>
 </div>
-<?php include 'includes/dashboard_footer.php'; ?>
+<?php include '../includes/dashboard_footer.php'; ?>

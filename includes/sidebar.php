@@ -48,7 +48,7 @@ $sidebar_links = [
     'account_common' => [
         ['heading' => 'Account'],
         ['label' => 'Edit Profile', 'icon' => 'fas fa-user-edit', 'link' => $base . 'profile.php'],
-        ['label' => 'Logout', 'icon' => 'fas fa-sign-out-alt', 'link' => $base . 'auth_handlers/handle_logout.php'],
+        ['label' => 'Logout', 'icon' => 'fas fa-sign-out-alt', 'link' => $base . 'auth/handle_logout.php'],
     ]
 ];
 

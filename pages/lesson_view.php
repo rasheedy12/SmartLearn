@@ -1,5 +1,5 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 // In real app: $course_id = $_GET['course_id']; $lesson_id = $_GET['lesson_id'];
 // Fetch lesson and course data.
 $mock_lesson_data = [
@@ -25,7 +25,7 @@ $_SESSION['user_role'] = isset($_SESSION['user_role']) ? $_SESSION['user_role'] 
     <title><?php echo $page_title; ?> - SmartLearn</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="<?php echo BASE_URL; ?>style.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/style.css">
     <style>
         body { background-color: #212529; color: #f8f9fa; display: flex; flex-direction: column; min-height: 100vh; }
         .lesson-header { background-color: #343a40; padding: 0.75rem 1.5rem; border-bottom: 1px solid #495057;}
@@ -61,7 +61,7 @@ $_SESSION['user_role'] = isset($_SESSION['user_role']) ? $_SESSION['user_role'] 
                 <ul class="navbar-nav ms-3">
                     <li class="nav-item">
                         <a class="nav-link" href="#" title="User Profile">
-                            <img src="<?php echo BASE_URL; ?>images/user_avatar_placeholder.png" class="user-avatar" style="width:24px; height:24px;">
+                            <img src="<?php echo BASE_URL; ?>assets/images/user_avatar_placeholder.png" class="user-avatar" style="width:24px; height:24px;">
                         </a>
                     </li>
                 </ul>

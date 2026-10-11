@@ -1,7 +1,7 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "Login";
-include 'includes/header.php';
+include '../includes/header.php';
 ?>
 
 <div class="auth-wrapper">
@@ -31,7 +31,7 @@ include 'includes/header.php';
             // }
             ?>
 
-            <form action="<?php echo BASE_URL; ?>auth_handlers/handle_login.php" method="POST">
+            <form action="<?php echo BASE_URL; ?>auth/handle_login.php" method="POST">
                 <div class="mb-3">
                     <label for="email" class="form-label">Email address</label>
                     <input type="email" class="form-control" id="email" name="email" placeholder="Enter your email" required>
@@ -59,4 +59,4 @@ include 'includes/header.php';
     </div>
 </div>
 
-<?php include 'includes/footer.php'; ?>
+<?php include '../includes/footer.php'; ?>

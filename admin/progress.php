@@ -1,9 +1,9 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "My Progress";
 $_SESSION['user_role'] = 'student';
 $use_charts = true; // This page will use charts
-include 'includes/dashboard_header.php';
+include '../includes/dashboard_header.php';
 
 // Mock data for progress
 $overall_progress = 72; // Percentage
@@ -142,7 +142,7 @@ $chart_data_progress = [
 ];
 echo '<script>const chartData = ' . (isset($chartData) ? json_encode(array_merge($chartData, $chart_data_progress)) : json_encode($chart_data_progress)) . ';</script>';
 
-$extra_js = [BASE_URL . 'js/dashboard_charts.js'];
-include 'includes/dashboard_footer.php';
+$extra_js = [BASE_URL . 'assets/js/dashboard_charts.js'];
+include '../includes/dashboard_footer.php';
 ?>
 

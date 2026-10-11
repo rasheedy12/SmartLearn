@@ -1,9 +1,9 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "Admin Dashboard";
 $_SESSION['user_role'] = 'admin'; // Mock role for sidebar
 $use_charts = true; // This page will use charts
-include 'includes/dashboard_header.php';
+include '../includes/dashboard_header.php';
 ?>
 
 <div class="container-fluid">
@@ -165,6 +165,6 @@ $chart_data = [
 ];
 echo '<script>const chartData = ' . json_encode($chart_data) . ';</script>';
 
-$extra_js = [BASE_URL . 'js/dashboard_charts.js']; // Ensure this file exists and has chart logic
-include 'includes/dashboard_footer.php';
+$extra_js = [BASE_URL . 'assets/js/dashboard_charts.js']; // Ensure this file exists and has chart logic
+include '../includes/dashboard_footer.php';
 ?>

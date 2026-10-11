@@ -1,23 +1,23 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "Browse Courses";
 
 // Conceptual: Determine if user is logged in to show appropriate header/footer
 $is_logged_in_browse = true; // Mock this
 // if ($is_logged_in_browse) {
     $_SESSION['user_role'] = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : 'student';
-    include 'includes/dashboard_header.php';
+    include '../includes/dashboard_header.php';
 // } else {
-//    include 'includes/header.php';
+//    include '../includes/header.php';
 // }
 
 $all_courses_data = [
-    ["id" => 1, "abbr" => "JS", "title" => "JavaScript Fundamentals", "instructor" => "Dr. Sarah Chen", "category" => "Web Development", "price" => "$49.99", "rating" => 4.8, "img" => BASE_URL . "images/js.png", "bg_color"=>"bg-primary"],
-    ["id" => 2, "abbr" => "UX", "title" => "UX Design Principles", "instructor" => "Mike Davis", "category" => "Design", "price" => "$39.99", "rating" => 4.7, "img" => BASE_URL . "images/ux.jpg", "bg_color"=>"bg-success"],
-    ["id" => 3, "abbr" => "PY", "title" => "Python for Data Science", "instructor" => "Dr. Emily White", "category" => "Data Science", "price" => "$59.99", "rating" => 4.9, "img" => BASE_URL . "images/py.jpeg", "bg_color"=>"bg-info"],
-    ["id" => 4, "abbr" => "MK", "title" => "Digital Marketing Essentials", "instructor" => "Johnathan Lee", "category" => "Marketing", "price" => "$29.99", "rating" => 4.6, "img" => BASE_URL . "images/dme.jpeg", "bg_color"=>"bg-warning text-dark"],
-    ["id" => 5, "abbr" => "AI", "title" => "Introduction to Artificial Intelligence", "instructor" => "Dr. Alan Turing Jr.", "category" => "Computer Science", "price" => "$79.99", "rating" => 4.9, "img" => BASE_URL . "images/ai.jpg", "bg_color"=>"bg-danger"],
-    ["id" => 6, "abbr" => "GD", "title" => "Graphic Design Masterclass", "instructor" => "Laura Ipsum", "category" => "Design", "price" => "$69.99", "rating" => 4.7, "img" => BASE_URL . "images/gd.jpeg", "bg_color"=>"bg-secondary"],
+    ["id" => 1, "abbr" => "JS", "title" => "JavaScript Fundamentals", "instructor" => "Dr. Sarah Chen", "category" => "Web Development", "price" => "$49.99", "rating" => 4.8, "img" => BASE_URL . "assets/images/js.png", "bg_color"=>"bg-primary"],
+    ["id" => 2, "abbr" => "UX", "title" => "UX Design Principles", "instructor" => "Mike Davis", "category" => "Design", "price" => "$39.99", "rating" => 4.7, "img" => BASE_URL . "assets/images/ux.jpg", "bg_color"=>"bg-success"],
+    ["id" => 3, "abbr" => "PY", "title" => "Python for Data Science", "instructor" => "Dr. Emily White", "category" => "Data Science", "price" => "$59.99", "rating" => 4.9, "img" => BASE_URL . "assets/images/py.jpeg", "bg_color"=>"bg-info"],
+    ["id" => 4, "abbr" => "MK", "title" => "Digital Marketing Essentials", "instructor" => "Johnathan Lee", "category" => "Marketing", "price" => "$29.99", "rating" => 4.6, "img" => BASE_URL . "assets/images/dme.jpeg", "bg_color"=>"bg-warning text-dark"],
+    ["id" => 5, "abbr" => "AI", "title" => "Introduction to Artificial Intelligence", "instructor" => "Dr. Alan Turing Jr.", "category" => "Computer Science", "price" => "$79.99", "rating" => 4.9, "img" => BASE_URL . "assets/images/ai.jpg", "bg_color"=>"bg-danger"],
+    ["id" => 6, "abbr" => "GD", "title" => "Graphic Design Masterclass", "instructor" => "Laura Ipsum", "category" => "Design", "price" => "$69.99", "rating" => 4.7, "img" => BASE_URL . "assets/images/gd.jpeg", "bg_color"=>"bg-secondary"],
 ];
 $categories = array_unique(array_column($all_courses_data, 'category'));
 ?>
@@ -82,8 +82,8 @@ $categories = array_unique(array_column($all_courses_data, 'category'));
 </div>
 <?php
 // if ($is_logged_in_browse) {
-    include 'includes/dashboard_footer.php';
+    include '../includes/dashboard_footer.php';
 // } else {
-//    include 'includes/footer.php';
+//    include '../includes/footer.php';
 // }
 ?>

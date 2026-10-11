@@ -1,13 +1,13 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "Study Buddies";
 $_SESSION['user_role'] = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : 'student';
-include 'includes/dashboard_header.php';
+include '../includes/dashboard_header.php';
 
 $mock_buddies = [
-    ['name' => 'Sarah Chen', 'avatar' => BASE_URL . 'images/avatars/student_1.png', 'courses' => ['JavaScript', 'UX Design'], 'status' => 'Online', 'bio' => 'Eager learner, loves JS & Python. Looking for project partners!'],
-    ['name' => 'Mike Rodriguez', 'avatar' => BASE_URL . 'images/avatars/student_2.png', 'courses' => ['JavaScript', 'Data Science'], 'status' => 'Offline', 'bio' => 'Data enthusiast, enjoys collaborative problem solving.'],
-    ['name' => 'Anna Ivanova', 'avatar' => BASE_URL . 'images/avatars/student_3.png', 'courses' => ['UX Design', 'Graphic Design'], 'status' => 'Online', 'bio' => 'Creative designer, passionate about user-centered solutions.'],
+    ['name' => 'Sarah Chen', 'avatar' => BASE_URL . 'assets/images/avatars/student_1.png', 'courses' => ['JavaScript', 'UX Design'], 'status' => 'Online', 'bio' => 'Eager learner, loves JS & Python. Looking for project partners!'],
+    ['name' => 'Mike Rodriguez', 'avatar' => BASE_URL . 'assets/images/avatars/student_2.png', 'courses' => ['JavaScript', 'Data Science'], 'status' => 'Offline', 'bio' => 'Data enthusiast, enjoys collaborative problem solving.'],
+    ['name' => 'Anna Ivanova', 'avatar' => BASE_URL . 'assets/images/avatars/student_3.png', 'courses' => ['UX Design', 'Graphic Design'], 'status' => 'Online', 'bio' => 'Creative designer, passionate about user-centered solutions.'],
 ];
 $mock_groups = [
     ['name' => 'JavaScript Study Group', 'members' => 15, 'activity' => 'Active daily', 'course_focus' => 'JavaScript Fundamentals'],
@@ -35,7 +35,7 @@ $mock_groups = [
                     <div class="list-group-item p-3">
                         <div class="row align-items-center">
                             <div class="col-auto">
-                                <img src="<?php echo htmlspecialchars($buddy['avatar']); ?>" alt="<?php echo htmlspecialchars($buddy['name']); ?>" class="rounded-circle" style="width: 50px; height: 50px; object-fit: cover;" onerror="this.src='<?php echo BASE_URL; ?>images/user_avatar_placeholder.png'">
+                                <img src="<?php echo htmlspecialchars($buddy['avatar']); ?>" alt="<?php echo htmlspecialchars($buddy['name']); ?>" class="rounded-circle" style="width: 50px; height: 50px; object-fit: cover;" onerror="this.src='<?php echo BASE_URL; ?>assets/images/user_avatar_placeholder.png'">
                             </div>
                             <div class="col">
                                 <h6 class="mb-0"><?php echo htmlspecialchars($buddy['name']); ?> 
@@ -92,5 +92,5 @@ $mock_groups = [
     </div>
 </div>
 <?php
-include 'includes/dashboard_footer.php';
+include '../includes/dashboard_footer.php';
 ?>

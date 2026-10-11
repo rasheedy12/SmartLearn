@@ -1,8 +1,8 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "Create New Course";
 $_SESSION['user_role'] = 'instructor';
-include 'includes/dashboard_header.php';
+include '../includes/dashboard_header.php';
 ?>
 <div class="container-fluid">
     <h1 class="h2 mb-4">Create New Course</h1> 
@@ -94,5 +94,5 @@ include 'includes/dashboard_header.php';
         </div>
     </form>
 </div>
-<?php include 'includes/dashboard_footer.php'; ?>
+<?php include '../includes/dashboard_footer.php'; ?>
 

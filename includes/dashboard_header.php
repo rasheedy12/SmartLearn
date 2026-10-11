@@ -4,17 +4,17 @@ if (session_status() == PHP_SESSION_NONE) { // Start session if not already star
     session_start();
 }
 
-define('BASE_URL_INC', './'); // Define BASE_URL for includes if not already defined globally
+define('BASE_URL_INC', file_exists(dirname(__FILE__) . '/../index.php') ? '../' : './'); // Determine the correct project root from the current include location
 
 // Use session data if available, otherwise mock data for direct testing
 $user_name = isset($_SESSION['user_name']) ? htmlspecialchars($_SESSION['user_name']) : 'Guest User';
-$user_avatar_path = isset($_SESSION['user_avatar']) ? htmlspecialchars($_SESSION['user_avatar']) : BASE_URL_INC . 'images/admin.jpg';
+$user_avatar_path = isset($_SESSION['user_avatar']) ? htmlspecialchars($_SESSION['user_avatar']) : BASE_URL_INC . 'assets/images/admin.jpg';
 $user_role = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : 'student'; // Default to student for testing
 
 // Ensure user_avatar_path is a valid URL or relative path from root
 if (!filter_var($user_avatar_path, FILTER_VALIDATE_URL) && !file_exists(rtrim($_SERVER['DOCUMENT_ROOT'], '/') . '/' . ltrim($user_avatar_path, '/'))) {
      // Fallback if file doesn't exist and not a URL
-    $user_avatar = BASE_URL_INC . 'images/admin.jpg'; // Default placeholder
+    $user_avatar = BASE_URL_INC . 'assets/images/admin.jpg'; // Default placeholder
 } else {
     $user_avatar = $user_avatar_path;
 }
@@ -34,7 +34,7 @@ $page_title_auto = isset($page_title) ? htmlspecialchars($page_title) : ucfirst(
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="<?php echo BASE_URL_INC; ?>style.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL_INC; ?>assets/style.css">
     <?php if (isset($extra_css) && is_array($extra_css)): foreach ($extra_css as $css_file): ?>
         <link rel="stylesheet" href="<?php echo $css_file; ?>">
     <?php endforeach; endif; ?>
@@ -66,13 +66,13 @@ $page_title_auto = isset($page_title) ? htmlspecialchars($page_title) : ucfirst(
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userActionsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <span class="d-none d-sm-inline me-2"><?php echo $user_name; ?></span>
-                                <img src="<?php echo $user_avatar; ?>" alt="<?php echo $user_name; ?>" class="user-avatar" onerror="this.onerror=null; this.src='<?php echo BASE_URL_INC; ?>images/user_avatar_placeholder.png';">
+                                <img src="<?php echo $user_avatar; ?>" alt="<?php echo $user_name; ?>" class="user-avatar" onerror="this.onerror=null; this.src='<?php echo BASE_URL_INC; ?>assets/images/user_avatar_placeholder.png';">
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userActionsDropdown">
                                 <li><a class="dropdown-item" href="<?php echo BASE_URL_INC; ?>profile.php"><i class="fas fa-user-circle fa-fw me-2"></i>Profile</a></li>
                                 <li><a class="dropdown-item" href="#"><i class="fas fa-cog fa-fw me-2"></i>Settings</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="<?php echo BASE_URL_INC; ?>auth_handlers/handle_logout.php"><i class="fas fa-sign-out-alt fa-fw me-2"></i>Logout</a></li>
+                                <li><a class="dropdown-item" href="<?php echo BASE_URL_INC; ?>auth/handle_logout.php"><i class="fas fa-sign-out-alt fa-fw me-2"></i>Logout</a></li>
                             </ul>
                         </li>
                     </ul>

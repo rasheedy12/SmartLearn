@@ -1,8 +1,8 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "My Profile";
 // The dashboard header will start the session and can include db_config.php
-include 'includes/dashboard_header.php';
+include '../includes/dashboard_header.php';
 
 // Check if user is logged in, if not, redirect to login page
 if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true){
@@ -27,7 +27,7 @@ if($stmt = $mysqli->prepare($sql_fetch_user)){
         } else {
             // Should not happen if user is logged in
             $_SESSION['error_message'] = "Error: User data not found. Please log in again.";
-            header("location: " . BASE_URL . "auth_handlers/handle_logout.php");
+            header("location: " . BASE_URL . "auth/handle_logout.php");
             exit;
         }
     } else {
@@ -61,14 +61,14 @@ unset($_SESSION['error_message']); // Clear after displaying
         </div>
     <?php endif; ?>
 
-    <form action="<?php echo BASE_URL; ?>auth_handlers/handle_profile_update.php" method="POST" enctype="multipart/form-data">
+    <form action="<?php echo BASE_URL; ?>auth/handle_profile_update.php" method="POST" enctype="multipart/form-data">
     <div class="row">
         <div class="col-lg-4 mb-4">
             <div class="card shadow-sm text-center h-100">
                 <div class="card-body d-flex flex-column justify-content-center">
                     <?php
                     // Robust check for avatar path
-                    $avatar_path = BASE_URL . 'images/user_avatar_placeholder.png'; // Default
+                    $avatar_path = BASE_URL . 'assets/images/user_avatar_placeholder.png'; // Default
                     if (!empty($current_user_data['avatar_url']) && file_exists(BASE_URL . $current_user_data['avatar_url'])) {
                         $avatar_path = BASE_URL . htmlspecialchars($current_user_data['avatar_url']);
                     }
@@ -138,4 +138,4 @@ unset($_SESSION['error_message']); // Clear after displaying
     </div>
     </form>
 </div>
-<?php include 'includes/dashboard_footer.php'; ?>
+<?php include '../includes/dashboard_footer.php'; ?>

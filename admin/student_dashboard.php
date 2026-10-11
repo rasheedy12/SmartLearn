@@ -1,8 +1,8 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "Student Dashboard";
 // $use_charts = true; // Example: if this page needs charts
-include 'includes/dashboard_header.php';
+include '../includes/dashboard_header.php';
 ?>
 
 <div class="container-fluid">
@@ -162,6 +162,6 @@ include 'includes/dashboard_header.php';
 </div>
 
 <?php
-// $extra_js = ['https://cdn.jsdelivr.net/npm/chart.js', BASE_URL . 'js/dashboard_charts.js'];
-include 'includes/dashboard_footer.php';
+// $extra_js = ['https://cdn.jsdelivr.net/npm/chart.js', BASE_URL . 'assets/js/dashboard_charts.js'];
+include '../includes/dashboard_footer.php';
 ?>

@@ -1,5 +1,5 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 // In a real app, course ID would come from GET param: $course_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 // Then fetch course data from DB. For now, mock data.
 $mock_course_id = 1; // Example
@@ -9,7 +9,7 @@ $course_data = [
         'tagline' => 'Master the building blocks of modern web development with hands-on projects and real-world examples.',
         'instructor_name' => 'Dr. Sarah Chen',
         'instructor_title' => 'Senior Web Developer & Educator',
-        'instructor_avatar' => BASE_URL . 'images/avatars/instructor.png', // Placeholder
+        'instructor_avatar' => BASE_URL . 'assets/images/avatars/instructor.png', // Placeholder
         'lessons_count' => 48,
         'skill_level' => 'Beginner',
         'category' => 'Web Development',
@@ -38,9 +38,9 @@ $course_data = [
 if (!isset($course_data[$mock_course_id])) {
     // Handle course not found, redirect or show error
     $page_title = "Course Not Found";
-    include 'includes/header.php'; // Public header for error
+    include '../includes/header.php'; // Public header for error
     echo '<div class="container py-5 text-center"><h1>Course Not Found</h1><p>The course you are looking for does not exist or has been moved.</p><a href="'.BASE_URL.'browse_courses.php" class="btn btn-primary">Browse Courses</a></div>';
-    include 'includes/footer.php';
+    include '../includes/footer.php';
     exit;
 }
 $current_course = $course_data[$mock_course_id];
@@ -50,9 +50,9 @@ $page_title = htmlspecialchars($current_course['title']);
 $is_logged_in = true; // Assume user is logged in for full view
 // if ($is_logged_in) {
     $_SESSION['user_role'] = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : 'student'; // Mock role for sidebar
-    include 'includes/dashboard_header.php';
+    include '../includes/dashboard_header.php';
 // } else {
-//    include 'includes/header.php'; // Public header for non-logged-in users
+//    include '../includes/header.php'; // Public header for non-logged-in users
 // }
 ?>
 
@@ -84,12 +84,12 @@ $is_logged_in = true; // Assume user is logged in for full view
                 <div class="card shadow">
                     <div class="card-img-top embed-responsive embed-responsive-16by9 bg-dark d-flex align-items-center justify-content-center" style="min-height: 200px;">
                         <?php if(!empty($current_course['video_preview_url'])): ?>
-                        <video controls class="embed-responsive-item w-100" poster="<?php echo BASE_URL; ?>images/course_placeholders/js_fundamentals.jpg">
+                        <video controls class="embed-responsive-item w-100" poster="<?php echo BASE_URL; ?>assets/images/course_placeholders/js_fundamentals.jpg">
                             <source src="<?php echo htmlspecialchars($current_course['video_preview_url']); ?>" type="video/mp4">
                             Your browser does not support the video tag.
                         </video>
                         <?php else: ?>
-                        <img src="<?php echo BASE_URL; ?>images/course_placeholders/js_fundamentals.jpg" class="img-fluid" alt="Course Preview Image">
+                        <img src="<?php echo BASE_URL; ?>assets/images/course_placeholders/js_fundamentals.jpg" class="img-fluid" alt="Course Preview Image">
                         <?php endif; ?>
                     </div>
                     <div class="card-body">
@@ -190,7 +190,7 @@ $is_logged_in = true; // Assume user is logged in for full view
                      <p class="small text-muted">Connect with others taking this course.</p>
                     <?php for($i=1; $i<=2; $i++): ?>
                     <div class="d-flex align-items-center mb-2">
-                        <img src="<?php echo BASE_URL; ?>images/avatars/student_<?php echo $i; ?>.png" alt="Study Buddy" class="rounded-circle me-2" style="width:30px; height:30px; object-fit:cover;" onerror="this.src='<?php echo BASE_URL; ?>images/user_avatar_placeholder.png'">
+                        <img src="<?php echo BASE_URL; ?>assets/images/avatars/student_<?php echo $i; ?>.png" alt="Study Buddy" class="rounded-circle me-2" style="width:30px; height:30px; object-fit:cover;" onerror="this.src='<?php echo BASE_URL; ?>assets/images/user_avatar_placeholder.png'">
                         <small>User <?php echo $i; ?> Name</small> <a href="#" class="ms-auto btn btn-sm btn-outline-info py-0">Connect</a>
                     </div>
                     <?php endfor; ?>
@@ -203,7 +203,7 @@ $is_logged_in = true; // Assume user is logged in for full view
 
 <?php
 // if ($is_logged_in) {
-    include 'includes/dashboard_footer.php';
+    include '../includes/dashboard_footer.php';
 // } else {
-//    include 'includes/footer.php';
+//    include '../includes/footer.php';
 // }

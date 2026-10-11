@@ -1,9 +1,9 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "Instructor Dashboard";
 $_SESSION['user_role'] = 'instructor'; // Mock role for sidebar
 // $use_charts = true; // If charts are needed
-include 'includes/dashboard_header.php';
+include '../includes/dashboard_header.php';
 ?>
 <div class="container-fluid">
     <h1 class="h2 mb-4">Instructor Dashboard</h1>
@@ -134,5 +134,5 @@ include 'includes/dashboard_header.php';
     </div>
 </div>
 <?php
-include 'includes/dashboard_footer.php';
+include '../includes/dashboard_footer.php';
 ?>

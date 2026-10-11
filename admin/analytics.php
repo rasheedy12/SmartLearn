@@ -1,9 +1,9 @@
 <?php
-define('BASE_URL', './');
+define('BASE_URL', '../');
 $page_title = "Course Analytics";
 $_SESSION['user_role'] = 'instructor';
 $use_charts = true; // This page will use charts
-include 'includes/dashboard_header.php';
+include '../includes/dashboard_header.php';
 
 // Mock: $course_id = isset($_GET['course_id']) ? intval($_GET['course_id']) : null;
 // Fetch analytics data for this instructor, optionally filtered by course_id
@@ -99,6 +99,6 @@ $chart_data_instructor = [
     ]
 ];
 echo '<script>const chartData = ' . (isset($chartData) ? json_encode(array_merge($chartData, $chart_data_instructor)) : json_encode($chart_data_instructor)) . ';</script>';
-$extra_js = [BASE_URL . 'js/dashboard_charts.js'];
-include 'includes/dashboard_footer.php';
+$extra_js = [BASE_URL . 'assets/js/dashboard_charts.js'];
+include '../includes/dashboard_footer.php';
 ?>

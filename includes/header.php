@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="<?php echo BASE_URL; ?>style.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/style.css">
 </head>
 <body>
     <?php
@@ -46,7 +46,7 @@
                     // if (isset($_SESSION['user_id'])) {
                     //     $dashboard_link = BASE_URL . htmlspecialchars($_SESSION['user_role']) . '_dashboard.php';
                     //     echo '<li class="nav-item"><a class="nav-link" href="' . $dashboard_link . '">My Dashboard</a></li>';
-                    //     echo '<li class="nav-item"><a class="nav-link btn btn-sm btn-outline-secondary ms-2" href="' . BASE_URL . 'auth_handlers/handle_logout.php">Logout</a></li>';
+                    //     echo '<li class="nav-item"><a class="nav-link btn btn-sm btn-outline-secondary ms-2" href="' . BASE_URL . 'auth/handle_logout.php">Logout</a></li>';
                     // } else {
                         echo '<li class="nav-item"><a class="nav-link" href="' . BASE_URL . 'login.php">Login</a></li>';
                         echo '<li class="nav-item ms-lg-2"><a class="nav-link btn btn-custom-primary btn-sm px-3 text-white" href="' . BASE_URL . 'register.php">Sign Up</a></li>';
