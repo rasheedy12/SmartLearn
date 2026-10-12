@@ -95,6 +95,11 @@ define('DB_NAME', 'Smartlearn');
 
 Adjust these values if your local MySQL setup differs.
 
+## Architecture
+
+See [docs/system-architecture.md](docs/system-architecture.md) for the current system overview, request flows, logical data model, deployment assumptions, and implementation gaps.
+For presentations, import [docs/smartlearn-architecture-figma.svg](docs/smartlearn-architecture-figma.svg) into Figma as an editable vector slide.
+
 ## Notes
 - The project uses relative paths and a folder-based structure for easier maintenance.
 - Some pages are kept as redirect wrappers to preserve compatibility while using the new structure.
@@ -102,4 +107,3 @@ Adjust these values if your local MySQL setup differs.
 
 ## License
 This project is currently distributed without a formal license file.
-
