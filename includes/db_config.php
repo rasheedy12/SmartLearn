@@ -1,11 +1,15 @@
 <?php
-define('DB_SERVER', 'localhost'); 
-define('DB_USERNAME', 'root'); 
-define('DB_PASSWORD', ''); 
-define('DB_NAME', 'Smartlearn');   
+define('DB_SERVER', 'localhost');
+define('DB_USERNAME', 'root');
+define('DB_PASSWORD', '');
+define('DB_NAME', 'Smartlearn');
+define('DB_SOCKET', '/opt/lampp/var/mysql/mysql.sock');
 
-/* Attempt to connect to MySQL database */
-$mysqli = new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME);
+/*
+ * The project uses XAMPP's MariaDB socket on this machine.
+ * Point PHP at that socket explicitly so mysqli can connect reliably.
+ */
+$mysqli = new mysqli(DB_SERVER, DB_USERNAME, DB_PASSWORD, DB_NAME, 3306, file_exists(DB_SOCKET) ? DB_SOCKET : '');
 
 // Check connection
 if($mysqli === false){

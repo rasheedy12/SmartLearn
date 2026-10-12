@@ -19,9 +19,18 @@
     ?>
 
     <?php if (!$is_auth_page): ?>
+    <?php
+        $current_dir = rtrim(dirname($_SERVER['PHP_SELF']), '/');
+        $current_dir = str_replace('\\', '/', $current_dir);
+
+        $home_url = ($current_dir === '/pages' || $current_dir === 'pages') ? 'index.php' : '../index.php';
+        $courses_url = ($current_dir === '/pages' || $current_dir === 'pages') ? 'browse_courses.php' : '../pages/browse_courses.php';
+        $login_url = ($current_dir === '/pages' || $current_dir === 'pages') ? 'login.php' : '../pages/login.php';
+        $register_url = ($current_dir === '/pages' || $current_dir === 'pages') ? 'register.php' : '../pages/register.php';
+    ?>
     <nav class="navbar navbar-expand-lg navbar-light bg-light sticky-top shadow-sm">
         <div class="container">
-            <a class="navbar-brand navbar-brand-custom" href="<?php echo BASE_URL; ?>index.php">
+            <a class="navbar-brand navbar-brand-custom" href="<?php echo $home_url; ?>">
                  <i class="fas fa-graduation-cap me-2 text-purple"></i>SmartLearn
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -30,16 +39,16 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-center">
                     <li class="nav-item">
-                        <a class="nav-link <?php echo ($current_page == 'index.php') ? 'active' : ''; ?>" href="<?php echo BASE_URL; ?>index.php">Home</a>
+                        <a class="nav-link <?php echo ($current_page == 'index.php') ? 'active' : ''; ?>" href="<?php echo $home_url; ?>">Home</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="<?php echo BASE_URL; ?>index.php#features">Features</a>
+                        <a class="nav-link" href="<?php echo $home_url; ?>#features">Features</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="<?php echo BASE_URL; ?>browse_courses.php">Courses</a>
+                        <a class="nav-link" href="<?php echo $courses_url; ?>">Courses</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="<?php echo BASE_URL; ?>index.php#testimonials">Testimonials</a>
+                        <a class="nav-link" href="<?php echo $home_url; ?>#testimonials">Testimonials</a>
                     </li>
                     <?php
                     // Conceptual: Check if user is logged in (replace with actual session check)
@@ -48,8 +57,8 @@
                     //     echo '<li class="nav-item"><a class="nav-link" href="' . $dashboard_link . '">My Dashboard</a></li>';
                     //     echo '<li class="nav-item"><a class="nav-link btn btn-sm btn-outline-secondary ms-2" href="' . BASE_URL . 'auth/handle_logout.php">Logout</a></li>';
                     // } else {
-                        echo '<li class="nav-item"><a class="nav-link" href="' . BASE_URL . 'login.php">Login</a></li>';
-                        echo '<li class="nav-item ms-lg-2"><a class="nav-link btn btn-custom-primary btn-sm px-3 text-white" href="' . BASE_URL . 'register.php">Sign Up</a></li>';
+                        echo '<li class="nav-item"><a class="nav-link" href="' . $login_url . '">Login</a></li>';
+                        echo '<li class="nav-item ms-lg-2"><a class="nav-link btn btn-custom-primary btn-sm px-3 text-white" href="' . $register_url . '">Sign Up</a></li>';
                     // }
                     ?>
                 </ul>

@@ -6,16 +6,11 @@ if (session_status() == PHP_SESSION_NONE) {
 $user_role_sidebar = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : 'student';
 $current_page_sidebar = basename($_SERVER['PHP_SELF']);
 
-// Define BASE_URL for sidebar links
-// This logic tries to determine the correct base path whether included from root or a subdirectory.
-if (defined('BASE_URL')) { // If BASE_URL is defined by the calling (root) script
-    $base = BASE_URL;
-} elseif (file_exists('../index.php')) { // If sidebar.php is in 'includes' and index.php is one level up
-    $base = '../';
-} else { // Fallback or if structure is different
-    $base = './'; // Assumes sidebar is included from a file in the same directory or root
-}
-
+// Define correct base paths for admin pages.
+$current_dir = rtrim(dirname($_SERVER['PHP_SELF']), '/');
+$current_dir = str_replace('\\', '/', $current_dir);
+$base = ($current_dir === '/admin' || $current_dir === 'admin') ? './' : '../';
+$logout_url = ($current_dir === '/admin' || $current_dir === 'admin') ? '../auth/handle_logout.php' : 'auth/handle_logout.php';
 
 $sidebar_links = [
     'common' => [
@@ -48,7 +43,7 @@ $sidebar_links = [
     'account_common' => [
         ['heading' => 'Account'],
         ['label' => 'Edit Profile', 'icon' => 'fas fa-user-edit', 'link' => $base . 'profile.php'],
-        ['label' => 'Logout', 'icon' => 'fas fa-sign-out-alt', 'link' => $base . 'auth/handle_logout.php'],
+        ['label' => 'Logout', 'icon' => 'fas fa-sign-out-alt', 'link' => $logout_url],
     ]
 ];
 

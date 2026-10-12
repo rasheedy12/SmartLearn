@@ -15,7 +15,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Basic validation
     if(empty($email) || empty($password_attempt)){
-        header("location: " . BASE_URL . "login.php?error=" . urlencode("Email and password are required."));
+        header("location: " . BASE_URL . "pages/login.php?error=" . urlencode("Email and password are required."));
         exit;
     }
 
@@ -40,11 +40,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $stmt->bind_result($user_id, $first_name, $last_name, $db_email, $hashed_password, $role, $avatar_url, $status);
                 if($stmt->fetch()){
                     if($status === 'suspended' || $status === 'deleted'){
-                        header("location: " . BASE_URL . "login.php?error=" . urlencode("Your account is " . $status . ". Please contact support."));
+                        header("location: " . BASE_URL . "pages/login.php?error=" . urlencode("Your account is " . $status . ". Please contact support."));
                         exit;
                     }
                     if($status === 'pending_approval' && $role !== 'student'){ // Instructors/Admins might need approval
-                        header("location: " . BASE_URL . "login.php?error=" . urlencode("Your account is pending approval. Please wait or contact support."));
+                        header("location: " . BASE_URL . "pages/login.php?error=" . urlencode("Your account is pending approval. Please wait or contact support."));
                         exit;
                     }
 
@@ -72,41 +72,41 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                         // Redirect user to appropriate dashboard
                         if ($role === "admin") {
-                            header("location: " . BASE_URL . "admin_dashboard.php");
+                            header("location: " . BASE_URL . "admin/admin_dashboard.php");
                         } elseif ($role === "instructor") {
-                            header("location: " . BASE_URL . "instructor_dashboard.php");
+                            header("location: " . BASE_URL . "admin/instructor_dashboard.php");
                         } else { // student
-                            header("location: " . BASE_URL . "student_dashboard.php");
+                            header("location: " . BASE_URL . "admin/student_dashboard.php");
                         }
                         exit;
                     } else{
                         // Password is not valid
-                        header("location: " . BASE_URL . "login.php?error=" . urlencode("Invalid email or password."));
+                        header("location: " . BASE_URL . "pages/login.php?error=" . urlencode("Invalid email or password."));
                         exit;
                     }
                 }
             } else{
                 // Email doesn't exist
-                header("location: " . BASE_URL . "login.php?error=" . urlencode("Invalid email or password."));
+                header("location: " . BASE_URL . "pages/login.php?error=" . urlencode("Invalid email or password."));
                 exit;
             }
         } else{
             error_log("Auth Error: Statement execution failed. " . $stmt->error);
-            header("location: " . BASE_URL . "login.php?error=" . urlencode("An error occurred. Please try again."));
+            header("location: " . BASE_URL . "pages/login.php?error=" . urlencode("An error occurred. Please try again."));
             exit;
         }
         // Close statement
         $stmt->close();
     } else {
         error_log("Auth Error: Statement preparation failed. " . $mysqli->error);
-        header("location: " . BASE_URL . "login.php?error=" . urlencode("An error occurred. Please try again."));
+        header("location: " . BASE_URL . "pages/login.php?error=" . urlencode("An error occurred. Please try again."));
         exit;
     }
     // Close connection
     $mysqli->close();
 } else {
     // If not a POST request, redirect to login page
-    header("Location: " . BASE_URL . "login.php");
+    header("Location: " . BASE_URL . "pages/login.php");
     exit;
 }
 ?>

@@ -22,6 +22,11 @@ if (!filter_var($user_avatar_path, FILTER_VALIDATE_URL) && !file_exists(rtrim($_
 $current_page_for_title = basename($_SERVER['PHP_SELF']);
 $page_title_auto = isset($page_title) ? htmlspecialchars($page_title) : ucfirst(str_replace(['_','.php'], [' ',''], $current_page_for_title));
 
+$current_dir = rtrim(dirname($_SERVER['PHP_SELF']), '/');
+$current_dir = str_replace('\\', '/', $current_dir);
+$profile_url = ($current_dir === '/admin' || $current_dir === 'admin') ? 'profile.php' : '../admin/profile.php';
+$logout_url = ($current_dir === '/admin' || $current_dir === 'admin') ? '../auth/handle_logout.php' : 'auth/handle_logout.php';
+
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -69,10 +74,10 @@ $page_title_auto = isset($page_title) ? htmlspecialchars($page_title) : ucfirst(
                                 <img src="<?php echo $user_avatar; ?>" alt="<?php echo $user_name; ?>" class="user-avatar" onerror="this.onerror=null; this.src='<?php echo BASE_URL_INC; ?>assets/images/user_avatar_placeholder.png';">
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userActionsDropdown">
-                                <li><a class="dropdown-item" href="<?php echo BASE_URL_INC; ?>profile.php"><i class="fas fa-user-circle fa-fw me-2"></i>Profile</a></li>
+                                <li><a class="dropdown-item" href="<?php echo $profile_url; ?>"><i class="fas fa-user-circle fa-fw me-2"></i>Profile</a></li>
                                 <li><a class="dropdown-item" href="#"><i class="fas fa-cog fa-fw me-2"></i>Settings</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="<?php echo BASE_URL_INC; ?>auth/handle_logout.php"><i class="fas fa-sign-out-alt fa-fw me-2"></i>Logout</a></li>
+                                <li><a class="dropdown-item" href="<?php echo $logout_url; ?>"><i class="fas fa-sign-out-alt fa-fw me-2"></i>Logout</a></li>
                             </ul>
                         </li>
                     </ul>

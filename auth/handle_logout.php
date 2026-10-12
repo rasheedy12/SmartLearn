@@ -22,6 +22,6 @@ if (ini_get("session.use_cookies")) {
 session_destroy();
 
 // Redirect to login page with a logged out status message
-header("Location: " . BASE_URL . "login.php?status=logged_out");
+header("Location: " . BASE_URL . "pages/login.php?status=logged_out");
 exit;
 ?>

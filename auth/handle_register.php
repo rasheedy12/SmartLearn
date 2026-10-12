@@ -76,7 +76,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
                 // Optional: Automatically log in the user or send to a success page/login page
                 // For this example, redirect to login page with a success message
-                header("Location: " . BASE_URL . "login.php?success=" . urlencode("Registration successful! Please login."));
+                header("Location: " . BASE_URL . "pages/login.php?success=" . urlencode("Registration successful! Please login."));
                 exit;
             } else {
                 $errors[] = "Registration failed. Please try again later.";
@@ -94,7 +94,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $_SESSION['register_errors'] = $errors; // Store errors in session to display on register page
         // You might also want to repopulate form fields
         $_SESSION['register_form_data'] = $_POST;
-        header("Location: " . BASE_URL . "register.php");
+        header("Location: " . BASE_URL . "pages/register.php");
         exit;
     }
 
@@ -102,7 +102,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 } else {
     // Not a POST request
-    header("Location: " . BASE_URL . "register.php");
+    header("Location: " . BASE_URL . "pages/register.php");
     exit;
 }
 ?>
