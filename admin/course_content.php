@@ -1,6 +1,7 @@
 <?php
 define('BASE_URL', '../');
 require_once BASE_URL . 'includes/instructor_helpers.php';
+require_once BASE_URL . 'includes/youtube_helpers.php';
 $instructor_id = (int) $_SESSION['user_id'];
 $course_id = filter_input(INPUT_GET, 'course_id', FILTER_VALIDATE_INT);
 if (!$course_id || $course_id < 1) {
@@ -38,6 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $lesson_title = trim($_POST['lesson_title'] ?? '');
         $content_type = $_POST['content_type'] ?? '';
         $content = trim($_POST['lesson_content'] ?? '');
+        $is_previewable = isset($_POST['is_previewable']) ? 1 : 0;
         $allowed_types = ['video', 'text', 'quiz', 'assignment', 'external_link'];
 
         if (!$module_id || $module_id < 1) {
@@ -51,6 +53,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if (in_array($content_type, ['text', 'video', 'external_link'], true) && $content === '') {
             $errors[] = 'Enter the lesson content or URL.';
+        }
+        if ($content_type === 'video' && youtube_video_id($content) === null) {
+            $errors[] = 'Enter a valid YouTube video URL for video lessons.';
+        }
+        if ($content_type === 'external_link'
+            && (!filter_var($content, FILTER_VALIDATE_URL)
+                || !in_array(strtolower((string) parse_url($content, PHP_URL_SCHEME)), ['http', 'https'], true))) {
+            $errors[] = 'Enter a valid HTTP or HTTPS URL for external-link lessons.';
         }
 
         if (!$errors) {
@@ -72,10 +82,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $external_url = $content_type === 'external_link' ? $content : null;
                 $text_content = $content_type === 'text' ? $content : null;
                 $insert = $mysqli->prepare(
-                    'INSERT INTO lessons (module_id, title, content_type, video_url, text_content, external_url, order_index)
-                     VALUES (?, ?, ?, ?, ?, ?, ?)'
+                    'INSERT INTO lessons (module_id, title, content_type, video_url, text_content, external_url, order_index, is_previewable)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
                 );
-                $insert->bind_param('isssssi', $module_id, $lesson_title, $content_type, $video_url, $text_content, $external_url, $order_index);
+                $insert->bind_param('issssssi', $module_id, $lesson_title, $content_type, $video_url, $text_content, $external_url, $order_index, $is_previewable);
                 $insert->execute();
                 $insert->close();
                 instructor_flash('success', 'Lesson added.');
@@ -152,10 +162,14 @@ include BASE_URL . 'includes/dashboard_header.php';
                             <div class="mb-3">
                                 <label class="form-label" for="contentType">Lesson type</label>
                                 <select class="form-select" id="contentType" name="content_type" required>
-                                    <option value="video">Video URL</option><option value="text">Text lesson</option><option value="quiz">Quiz</option><option value="assignment">Assignment</option><option value="external_link">External link</option>
+                                    <option value="video">YouTube video URL</option><option value="text">Text lesson</option><option value="quiz">Quiz</option><option value="assignment">Assignment</option><option value="external_link">External link</option>
                                 </select>
                             </div>
                             <div class="mb-3"><label class="form-label" for="lessonContent">Content or URL</label><textarea class="form-control" id="lessonContent" name="lesson_content" rows="4"></textarea></div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="lessonPreviewable" name="is_previewable" value="1">
+                                    <label class="form-check-label" for="lessonPreviewable">Allow students to preview this lesson before enrolling</label>
+                                </div>
                             <button class="btn btn-primary" type="submit">Add Lesson</button>
                         </form>
                     </div>

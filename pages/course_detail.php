@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/student_helpers.php';
+require_once __DIR__ . '/../includes/paystack_helpers.php';
+require_once __DIR__ . '/../includes/youtube_helpers.php';
 
 define('BASE_URL', '../');
 $course_id = filter_var($_GET['id'] ?? null, FILTER_VALIDATE_INT);
@@ -7,6 +9,7 @@ $course_id = $course_id && $course_id > 0 ? $course_id : 0;
 $user_id = (int) $_SESSION['user_id'];
 $error_message = '';
 $success_message = '';
+$payment_error = trim((string) ($_GET['payment_error'] ?? ''));
 $course = null;
 $modules = [];
 $enrollment = null;
@@ -90,17 +93,27 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && $course) {
         if ($is_enrolled) {
             $success_message = 'You are already enrolled in this course.';
         } elseif ((int) $course['is_free'] !== 1) {
-            $error_message = 'Enrollment for paid courses is unavailable because checkout has not been configured.';
+            $error_message = 'Paid courses require payment before enrollment. Use the Paystack checkout form.';
         } else {
             try {
+                $mysqli->begin_transaction();
                 $enroll_stmt = $mysqli->prepare(
                     'INSERT INTO enrollments (user_id, course_id, enrolled_at, progress_percentage) VALUES (?, ?, NOW(), 0)'
                 );
                 $enroll_stmt->bind_param('ii', $user_id, $course_id);
                 $enroll_stmt->execute();
+                $count_stmt = $mysqli->prepare(
+                    'UPDATE courses SET enrolled_students_count = enrolled_students_count + 1 WHERE course_id = ?'
+                );
+                $count_stmt->bind_param('i', $course_id);
+                $count_stmt->execute();
+                $mysqli->commit();
                 header('Location: course_detail.php?id=' . $course_id . '&enrolled=1');
                 exit;
             } catch (Throwable $exception) {
+                if ($mysqli->server_status & MYSQLI_SERVER_STATUS_IN_TRANS) {
+                    $mysqli->rollback();
+                }
                 error_log('Free course enrollment failed: ' . $exception->getMessage());
                 $error_message = 'Enrollment could not be completed. Please try again.';
             }
@@ -110,6 +123,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && $course) {
 
 if ($course && isset($_GET['enrolled']) && $_GET['enrolled'] === '1') {
     $success_message = 'You are enrolled. The course is now available in My Courses.';
+}
+if ($course && isset($_GET['payment_success']) && $_GET['payment_success'] === '1') {
+    $success_message = 'Payment verified. You are enrolled and can start learning.';
 }
 
 $page_title = $course ? $course['title'] : 'Course Not Found';
@@ -178,7 +194,12 @@ foreach ($modules as $module) {
             </div>
             <div class="col-lg-4">
                 <div class="card text-dark shadow">
-                    <?php if (!empty($course['video_preview_url'])): ?>
+                    <?php if (!empty($course['video_preview_url']) && ($preview_video_id = youtube_video_id($course['video_preview_url']))): ?>
+                        <div class="ratio ratio-16x9">
+                            <iframe src="https://www.youtube-nocookie.com/embed/<?php echo htmlspecialchars($preview_video_id, ENT_QUOTES, 'UTF-8'); ?>"
+                                    title="Course video preview" allowfullscreen loading="lazy"></iframe>
+                        </div>
+                    <?php elseif (!empty($course['video_preview_url'])): ?>
                         <video controls class="w-100" style="max-height: 220px">
                             <source src="<?php echo htmlspecialchars($course['video_preview_url'], ENT_QUOTES, 'UTF-8'); ?>">
                         </video>
@@ -190,17 +211,45 @@ foreach ($modules as $module) {
                         <div class="bg-light text-muted text-center py-5">Course preview unavailable</div>
                     <?php endif; ?>
                     <div class="card-body">
-                        <h2 class="h3"><?php echo $display_price <= 0 ? 'Free' : '$' . number_format($display_price, 2); ?></h2>
+                        <h2 class="h3"><?php echo $display_price <= 0 ? 'Free' : '$' . number_format($display_price, 2) . ' USD'; ?></h2>
                         <?php if ($is_enrolled): ?>
-                            <a href="../admin/my_courses.php" class="btn btn-success w-100 mb-2">Go to My Courses</a>
-                        <?php elseif ((int) $course['is_free'] === 1): ?>
+                                <?php
+                                $first_lesson_id = 0;
+                                foreach ($modules as $module) {
+                                    if (!empty($module['lessons'])) {
+                                        $first_lesson_id = (int) $module['lessons'][0]['lesson_id'];
+                                        break;
+                                    }
+                                }
+                                ?>
+                                <?php if ($first_lesson_id > 0): ?>
+                                    <a href="lesson_view.php?course_id=<?php echo $course_id; ?>&amp;lesson_id=<?php echo $first_lesson_id; ?>"
+                                       class="btn btn-success w-100 mb-2">Start learning</a>
+                                <?php else: ?>
+                                    <a href="../admin/my_courses.php" class="btn btn-success w-100 mb-2">Go to My Courses</a>
+                                <?php endif; ?>
+                            <?php elseif ((int) $course['is_free'] === 1): ?>
                             <form method="post">
                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(student_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
                                 <input type="hidden" name="action" value="enroll">
                                 <button class="btn btn-primary w-100 mb-2" type="submit">Enroll for free</button>
                             </form>
                         <?php else: ?>
-                            <button class="btn btn-secondary w-100 mb-2" type="button" disabled>Paid checkout unavailable</button>
+                            <form method="post" action="initiate_course_payment.php">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(student_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+                                <input type="hidden" name="course_id" value="<?php echo $course_id; ?>">
+                                <label class="form-label small mb-1" for="payment-currency">Pay in your currency</label>
+                                <select class="form-select mb-2" id="payment-currency" name="currency" required>
+                                    <?php foreach (paystack_supported_currencies() as $currency_code => $currency_name): ?>
+                                        <option value="<?php echo htmlspecialchars($currency_code, ENT_QUOTES, 'UTF-8'); ?>"
+                                            <?php echo $currency_code === 'USD' ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($currency_name . ' (' . $currency_code . ')', ENT_QUOTES, 'UTF-8'); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <button class="btn btn-primary w-100 mb-2" type="submit">Pay with Paystack</button>
+                                <small class="text-muted d-block text-center">The USD course price is converted using the current exchange rate. Currency availability depends on the merchant's Paystack account.</small>
+                            </form>
                         <?php endif; ?>
                         <form method="post">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(student_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
@@ -219,6 +268,9 @@ foreach ($modules as $module) {
 </div>
 
 <main class="container py-5">
+    <?php if ($payment_error !== ''): ?>
+        <div class="alert alert-danger" role="alert"><?php echo htmlspecialchars($payment_error, ENT_QUOTES, 'UTF-8'); ?></div>
+    <?php endif; ?>
     <?php if ($error_message !== ''): ?>
         <div class="alert alert-danger" role="alert"><?php echo htmlspecialchars($error_message, ENT_QUOTES, 'UTF-8'); ?></div>
     <?php endif; ?>
@@ -262,8 +314,17 @@ foreach ($modules as $module) {
                                         <ul class="list-group list-group-flush">
                                             <?php foreach ($module['lessons'] as $lesson): ?>
                                                 <li class="list-group-item d-flex justify-content-between">
-                                                    <span><i class="far fa-play-circle text-primary me-2"></i>
+                                                    <span>
+                                                        <?php if ($is_enrolled || (int) $lesson['is_previewable'] === 1): ?>
+                                                            <a href="lesson_view.php?course_id=<?php echo $course_id; ?>&amp;lesson_id=<?php echo (int) $lesson['lesson_id']; ?>"
+                                                               class="text-decoration-none">
+                                                                <i class="far fa-play-circle text-primary me-2"></i>
+                                                                <?php echo htmlspecialchars($lesson['lesson_title'], ENT_QUOTES, 'UTF-8'); ?>
+                                                            </a>
+                                                        <?php else: ?>
+                                                            <i class="fas fa-lock text-muted me-2"></i>
                                                         <?php echo htmlspecialchars($lesson['lesson_title'], ENT_QUOTES, 'UTF-8'); ?>
+                                                        <?php endif; ?>
                                                         <?php if ((int) $lesson['is_previewable'] === 1): ?>
                                                             <span class="badge bg-info text-dark ms-1">Preview</span>
                                                         <?php endif; ?>

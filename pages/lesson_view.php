@@ -1,130 +1,273 @@
 <?php
-define('BASE_URL', '../');
-// In real app: $course_id = $_GET['course_id']; $lesson_id = $_GET['lesson_id'];
-// Fetch lesson and course data.
-$mock_lesson_data = [
-    'course_title' => 'JavaScript Fundamentals',
-    'lesson_title' => 'Setting Up Your Environment',
-    'video_url' => 'https://www.w3schools.com/html/mov_bbb.mp4', // Placeholder
-    'progress' => 60, // Overall course progress
-    'notes' => [
-        ['title' => 'Key Takeaway 1', 'content' => 'Node.js is essential for server-side JS.', 'time' => '2 min ago'],
-        ['title' => 'Remember This', 'content' => 'Use `npm init` to start a new project.', 'time' => '5 min ago'],
-    ]
-];
-$page_title = htmlspecialchars($mock_lesson_data['lesson_title']);
-$_SESSION['user_role'] = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : 'student';
+require_once __DIR__ . '/../includes/student_helpers.php';
+require_once __DIR__ . '/../includes/youtube_helpers.php';
 
-// Custom header for lesson view (more focused)
+$course_id = filter_var($_GET['course_id'] ?? null, FILTER_VALIDATE_INT);
+$lesson_id = filter_var($_GET['lesson_id'] ?? null, FILTER_VALIDATE_INT);
+$course_id = $course_id && $course_id > 0 ? $course_id : 0;
+$lesson_id = $lesson_id && $lesson_id > 0 ? $lesson_id : 0;
+$user_id = (int) $_SESSION['user_id'];
+$error_message = '';
+$lesson = null;
+$enrollment = null;
+$is_enrolled = false;
+$playlist = [];
+$transaction_started = false;
+
+try {
+    if ($course_id > 0 && $lesson_id > 0) {
+        $lesson_stmt = $mysqli->prepare(
+            'SELECT c.course_id, c.title AS course_title, c.status AS course_status,
+                    l.lesson_id, l.title AS lesson_title,
+                    l.content_type, l.video_url, l.text_content, l.external_url,
+                    l.duration_minutes, l.is_previewable, m.title AS module_title
+             FROM lessons l
+             JOIN modules m ON m.module_id = l.module_id
+             JOIN courses c ON c.course_id = m.course_id
+             WHERE c.course_id = ? AND l.lesson_id = ?
+             LIMIT 1'
+        );
+        $lesson_stmt->bind_param('ii', $course_id, $lesson_id);
+        $lesson_stmt->execute();
+        $lesson = $lesson_stmt->get_result()->fetch_assoc();
+
+        if ($lesson) {
+            $enrollment_stmt = $mysqli->prepare(
+                'SELECT enrollment_id, progress_percentage FROM enrollments WHERE user_id = ? AND course_id = ? LIMIT 1'
+            );
+            $enrollment_stmt->bind_param('ii', $user_id, $course_id);
+            $enrollment_stmt->execute();
+            $enrollment = $enrollment_stmt->get_result()->fetch_assoc();
+            $is_enrolled = $enrollment !== null;
+        }
+    }
+
+    if ($lesson && ($is_enrolled || (
+        $lesson['course_status'] === 'published' && (int) $lesson['is_previewable'] === 1
+    ))) {
+        $playlist_stmt = $mysqli->prepare(
+            'SELECT l.lesson_id, l.title, l.content_type, l.is_previewable, l.duration_minutes,
+                    COALESCE(lp.is_completed, 0) AS is_completed
+             FROM modules m
+             JOIN lessons l ON l.module_id = m.module_id
+             LEFT JOIN lesson_progress lp ON lp.lesson_id = l.lesson_id AND lp.enrollment_id = ?
+             WHERE m.course_id = ?
+             ORDER BY m.order_index, l.order_index, l.lesson_id'
+        );
+        $enrollment_id = $is_enrolled ? (int) $enrollment['enrollment_id'] : 0;
+        $playlist_stmt->bind_param('ii', $enrollment_id, $course_id);
+        $playlist_stmt->execute();
+        $playlist = $playlist_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    }
+} catch (Throwable $exception) {
+    error_log('Course lesson could not be loaded: ' . $exception->getMessage());
+    $error_message = 'This lesson could not be loaded right now.';
+}
+
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && $lesson) {
+    if (!student_verify_csrf()) {
+        http_response_code(400);
+        $error_message = 'Your request could not be verified. Refresh the page and try again.';
+    } elseif (!$is_enrolled) {
+        http_response_code(403);
+        $error_message = 'Enroll in this course before recording lesson progress.';
+    } elseif (($_POST['action'] ?? '') === 'complete_lesson') {
+        try {
+            $mysqli->begin_transaction();
+            $transaction_started = true;
+            $progress_stmt = $mysqli->prepare(
+                'INSERT INTO lesson_progress (enrollment_id, lesson_id, is_completed, completed_at)
+                 VALUES (?, ?, 1, NOW())
+                 ON DUPLICATE KEY UPDATE is_completed = 1, completed_at = NOW()'
+            );
+            $progress_stmt->bind_param('ii', $enrollment['enrollment_id'], $lesson_id);
+            $progress_stmt->execute();
+
+            $totals_stmt = $mysqli->prepare(
+                'SELECT COUNT(l.lesson_id) AS lesson_count,
+                        COUNT(CASE WHEN lp.is_completed = 1 THEN l.lesson_id END) AS completed_count
+                 FROM modules m
+                 JOIN lessons l ON l.module_id = m.module_id
+                 LEFT JOIN lesson_progress lp ON lp.lesson_id = l.lesson_id AND lp.enrollment_id = ?
+                 WHERE m.course_id = ?'
+            );
+            $totals_stmt->bind_param('ii', $enrollment['enrollment_id'], $course_id);
+            $totals_stmt->execute();
+            $totals = $totals_stmt->get_result()->fetch_assoc();
+            $lesson_total = (int) $totals['lesson_count'];
+            $completed_total = (int) $totals['completed_count'];
+            $progress_percentage = $lesson_total > 0
+                ? (int) round($completed_total * 100 / $lesson_total)
+                : 0;
+            $is_course_complete = $lesson_total > 0 && $completed_total >= $lesson_total ? 1 : 0;
+
+            $enrollment_update = $mysqli->prepare(
+                'UPDATE enrollments
+                 SET progress_percentage = ?,
+                     completed_at = IF(? = 1, COALESCE(completed_at, NOW()), NULL)
+                 WHERE enrollment_id = ?'
+            );
+            $enrollment_update->bind_param('iii', $progress_percentage, $is_course_complete, $enrollment['enrollment_id']);
+            $enrollment_update->execute();
+            $mysqli->commit();
+            $transaction_started = false;
+            header('Location: lesson_view.php?course_id=' . $course_id . '&lesson_id=' . $lesson_id . '&completed=1');
+            exit;
+        } catch (Throwable $exception) {
+            if ($transaction_started) {
+                $mysqli->rollback();
+            }
+            error_log('Lesson completion could not be saved: ' . $exception->getMessage());
+            $error_message = 'Your lesson progress could not be saved. Please try again.';
+        }
+    }
+}
+
+$page_title = $lesson ? $lesson['lesson_title'] : 'Lesson unavailable';
+$current_index = null;
+foreach ($playlist as $index => $item) {
+    if ((int) $item['lesson_id'] === $lesson_id) {
+        $current_index = $index;
+        break;
+    }
+}
+$video_url = $lesson['video_url'] ?? '';
+$youtube_id = youtube_video_id($video_url);
+$direct_video = preg_match('~^https://[^\\s]+\\.(?:mp4|webm|ogg)(?:\\?[^\\s]*)?$~i', $video_url) === 1;
+$external_link = $lesson['external_url'] ?? '';
+include __DIR__ . '/../includes/dashboard_header.php';
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $page_title; ?> - SmartLearn</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/style.css">
-    <style>
-        body { background-color: #212529; color: #f8f9fa; display: flex; flex-direction: column; min-height: 100vh; }
-        .lesson-header { background-color: #343a40; padding: 0.75rem 1.5rem; border-bottom: 1px solid #495057;}
-        .lesson-header .navbar-brand, .lesson-header .nav-link { color: #f8f9fa; }
-        .lesson-header .progress { height: 6px; background-color: #495057; }
-        .lesson-main-content { flex-grow: 1; display: flex; overflow: hidden; } /* Key for layout */
-        .video-container { flex-grow: 1; background-color: #000; display:flex; align-items:center; justify-content:center; padding: 1rem; }
-        .video-container video { max-width: 100%; max-height: calc(100vh - 150px); /* Adjust based on header/footer */ }
-        .lesson-sidebar { width: 320px; background-color: #2c3034; padding: 1rem; border-left: 1px solid #495057; overflow-y: auto; }
-        .lesson-sidebar .nav-tabs .nav-link { color: #adb5bd; border-color: #495057 #495057 #2c3034; }
-        .lesson-sidebar .nav-tabs .nav-link.active { color: #fff; background-color: #2c3034; border-color: #495057 #495057 #fff; }
-        .lesson-sidebar .list-group-item { background-color: transparent; border-color: #495057; color: #adb5bd; }
-        .lesson-footer { background-color: #343a40; padding: 1rem; border-top: 1px solid #495057; }
-        .btn-lesson-nav { background-color: #495057; border-color: #495057; color: #fff; }
-        .btn-lesson-nav:hover { background-color: #5a6268; border-color: #5a6268; }
-        .btn-complete { background-color: #28a745; border-color: #28a745; color: #fff; }
-        .btn-complete:hover { background-color: #218838; border-color: #1e7e34; }
-    </style>
-</head>
-<body>
-    <header class="lesson-header">
-        <nav class="navbar navbar-expand navbar-dark">
-            <div class="container-fluid">
-                <a class="navbar-brand fs-6" href="<?php echo BASE_URL; ?>course_detail.php?id=1">
-                    <i class="fas fa-arrow-left me-2"></i> <?php echo htmlspecialchars($mock_lesson_data['course_title']); ?>
-                </a>
-                <div class="ms-auto d-flex align-items-center" style="min-width: 200px;">
-                    <small class="me-2">Progress: <?php echo $mock_lesson_data['progress']; ?>%</small>
-                    <div class="progress flex-grow-1">
-                        <div class="progress-bar bg-success" role="progressbar" style="width: <?php echo $mock_lesson_data['progress']; ?>%;" aria-valuenow="<?php echo $mock_lesson_data['progress']; ?>" aria-valuemin="0" aria-valuemax="100"></div>
-                    </div>
-                </div>
-                <ul class="navbar-nav ms-3">
-                    <li class="nav-item">
-                        <a class="nav-link" href="#" title="User Profile">
-                            <img src="<?php echo BASE_URL; ?>assets/images/user_avatar_placeholder.png" class="user-avatar" style="width:24px; height:24px;">
-                        </a>
-                    </li>
-                </ul>
-            </div>
-        </nav>
-    </header>
-
-    <div class="lesson-main-content">
-        <div class="video-container">
-            <video controls autoplay class="embed-responsive-item">
-                <source src="<?php echo htmlspecialchars($mock_lesson_data['video_url']); ?>" type="video/mp4">
-                Your browser does not support the video tag.
-            </video>
+<div class="container-fluid">
+    <?php if (!$lesson || (!$is_enrolled && (
+        $lesson['course_status'] !== 'published' || (int) $lesson['is_previewable'] !== 1
+    ))): ?>
+        <div class="alert alert-warning">
+            <h1 class="h4">Lesson unavailable</h1>
+            <p><?php echo htmlspecialchars($error_message ?: 'This lesson does not exist or requires course enrollment.', ENT_QUOTES, 'UTF-8'); ?></p>
+            <a class="btn btn-primary" href="course_detail.php?id=<?php echo $course_id; ?>">Back to course</a>
         </div>
-        <aside class="lesson-sidebar">
-            <h5 class="mb-3"><?php echo htmlspecialchars($mock_lesson_data['lesson_title']); ?></h5>
-            <ul class="nav nav-tabs nav-fill mb-3" id="lessonTabs" role="tablist">
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link active" id="notes-tab" data-bs-toggle="tab" data-bs-target="#notes-panel" type="button" role="tab" aria-controls="notes-panel" aria-selected="true">Notes</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="discussion-tab" data-bs-toggle="tab" data-bs-target="#discussion-panel" type="button" role="tab" aria-controls="discussion-panel" aria-selected="false">Discussion</button>
-                </li>
-                <li class="nav-item" role="presentation">
-                    <button class="nav-link" id="quiz-tab" data-bs-toggle="tab" data-bs-target="#quiz-panel" type="button" role="tab" aria-controls="quiz-panel" aria-selected="false">Quiz</button>
-                </li>
-            </ul>
-            <div class="tab-content" id="lessonTabsContent">
-                <div class="tab-pane fade show active" id="notes-panel" role="tabpanel" aria-labelledby="notes-tab">
-                    <button class="btn btn-sm btn-outline-light w-100 mb-3">Add a New Note</button>
-                    <?php if(empty($mock_lesson_data['notes'])): ?>
-                        <p class="text-center text-muted">No notes yet for this lesson.</p>
+    <?php else: ?>
+        <?php if ($error_message !== ''): ?>
+            <div class="alert alert-danger" role="alert"><?php echo htmlspecialchars($error_message, ENT_QUOTES, 'UTF-8'); ?></div>
+        <?php endif; ?>
+        <?php if (isset($_GET['completed']) && $_GET['completed'] === '1'): ?>
+            <div class="alert alert-success" role="status">Lesson marked complete. Your progress has been updated.</div>
+        <?php endif; ?>
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+            <div>
+                <a href="course_detail.php?id=<?php echo $course_id; ?>" class="text-decoration-none">
+                    <i class="fas fa-arrow-left me-1"></i><?php echo htmlspecialchars($lesson['course_title'], ENT_QUOTES, 'UTF-8'); ?>
+                </a>
+                <h1 class="h3 mt-2 mb-0"><?php echo htmlspecialchars($lesson['lesson_title'], ENT_QUOTES, 'UTF-8'); ?></h1>
+                <small class="text-muted"><?php echo htmlspecialchars($lesson['module_title'], ENT_QUOTES, 'UTF-8'); ?>
+                    <?php if (!empty($lesson['duration_minutes'])): ?> · <?php echo (int) $lesson['duration_minutes']; ?> min<?php endif; ?>
+                </small>
+            </div>
+            <?php if (!$is_enrolled): ?><span class="badge bg-info text-dark">Preview lesson</span><?php endif; ?>
+        </div>
+
+        <div class="row g-4">
+            <main class="col-lg-8">
+                <div class="bg-dark rounded p-2 mb-3">
+                    <?php if ($youtube_id): ?>
+                        <div class="ratio ratio-16x9">
+                            <iframe src="https://www.youtube-nocookie.com/embed/<?php echo htmlspecialchars($youtube_id, ENT_QUOTES, 'UTF-8'); ?>"
+                                    title="<?php echo htmlspecialchars($lesson['lesson_title'], ENT_QUOTES, 'UTF-8'); ?>"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                    referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+                        </div>
+                    <?php elseif ($direct_video): ?>
+                        <video controls class="w-100">
+                            <source src="<?php echo htmlspecialchars($video_url, ENT_QUOTES, 'UTF-8'); ?>">
+                            Your browser does not support this video.
+                        </video>
+                    <?php elseif ($lesson['content_type'] === 'text' && !empty($lesson['text_content'])): ?>
+                        <div class="bg-white text-dark rounded p-4">
+                            <?php echo nl2br(htmlspecialchars($lesson['text_content'], ENT_QUOTES, 'UTF-8')); ?>
+                        </div>
+                    <?php elseif ($external_link !== '' && filter_var($external_link, FILTER_VALIDATE_URL)): ?>
+                        <div class="text-center text-white py-5">
+                            <p>This lesson opens an external resource.</p>
+                            <a href="<?php echo htmlspecialchars($external_link, ENT_QUOTES, 'UTF-8'); ?>"
+                               class="btn btn-light" target="_blank" rel="noopener noreferrer">Open lesson resource</a>
+                        </div>
                     <?php else: ?>
-                    <ul class="list-group list-group-flush">
-                        <?php foreach($mock_lesson_data['notes'] as $note): ?>
-                        <li class="list-group-item">
-                            <h6 class="mb-1 small"><?php echo htmlspecialchars($note['title']); ?></h6>
-                            <p class="mb-1 small"><?php echo htmlspecialchars($note['content']); ?></p>
-                            <small class="text-muted"><?php echo htmlspecialchars($note['time']); ?></small>
-                        </li>
-                        <?php endforeach; ?>
-                    </ul>
+                        <div class="text-center text-white py-5">No video or lesson content has been added.</div>
                     <?php endif; ?>
                 </div>
-                <div class="tab-pane fade" id="discussion-panel" role="tabpanel" aria-labelledby="discussion-tab">
-                    <p class="text-center text-muted">Discussion forum coming soon.</p>
-                </div>
-                <div class="tab-pane fade" id="quiz-panel" role="tabpanel" aria-labelledby="quiz-tab">
-                    <p class="text-center text-muted">Quiz will be available after completing the video.</p>
-                    <button class="btn btn-sm btn-secondary w-100" disabled>Start Quiz</button>
-                </div>
-            </div>
-        </aside>
-    </div>
 
-    <footer class="lesson-footer mt-auto">
-        <div class="container-fluid d-flex justify-content-between align-items-center">
-            <button class="btn btn-lesson-nav"><i class="fas fa-chevron-left me-1"></i> Previous</button>
-            <button class="btn btn-complete"><i class="fas fa-check-circle me-1"></i> Mark as Complete</button>
-            <button class="btn btn-lesson-nav">Next <i class="fas fa-chevron-right ms-1"></i></button>
+                <?php if (!empty($lesson['text_content']) && $lesson['content_type'] !== 'text'): ?>
+                    <section class="card mb-3">
+                        <div class="card-body">
+                            <h2 class="h5">Lesson notes</h2>
+                            <?php echo nl2br(htmlspecialchars($lesson['text_content'], ENT_QUOTES, 'UTF-8')); ?>
+                        </div>
+                    </section>
+                <?php endif; ?>
+
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <?php
+                    $previous = $current_index !== null && $current_index > 0 ? $playlist[$current_index - 1] : null;
+                    $next = $current_index !== null && isset($playlist[$current_index + 1]) ? $playlist[$current_index + 1] : null;
+                    ?>
+                    <?php if ($previous && ($is_enrolled || (int) $previous['is_previewable'] === 1)): ?>
+                        <a class="btn btn-outline-secondary"
+                           href="lesson_view.php?course_id=<?php echo $course_id; ?>&amp;lesson_id=<?php echo (int) $previous['lesson_id']; ?>">
+                            <i class="fas fa-chevron-left me-1"></i>Previous
+                        </a>
+                    <?php else: ?><span></span><?php endif; ?>
+                    <?php if ($is_enrolled): ?>
+                        <form method="post">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(student_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+                            <input type="hidden" name="action" value="complete_lesson">
+                            <button class="btn btn-success" type="submit">
+                                <i class="fas fa-check-circle me-1"></i>Mark as complete
+                            </button>
+                        </form>
+                    <?php endif; ?>
+                    <?php if ($next && ($is_enrolled || (int) $next['is_previewable'] === 1)): ?>
+                        <a class="btn btn-outline-secondary"
+                           href="lesson_view.php?course_id=<?php echo $course_id; ?>&amp;lesson_id=<?php echo (int) $next['lesson_id']; ?>">
+                            Next<i class="fas fa-chevron-right ms-1"></i>
+                        </a>
+                    <?php else: ?><span></span><?php endif; ?>
+                </div>
+            </main>
+
+            <aside class="col-lg-4">
+                <section class="card shadow-sm">
+                    <div class="card-header"><h2 class="h5 mb-0">Course video playlist</h2></div>
+                    <div class="list-group list-group-flush">
+                        <?php foreach ($playlist as $item): ?>
+                            <?php
+                            $available = $is_enrolled || (int) $item['is_previewable'] === 1;
+                            $item_url = 'lesson_view.php?course_id=' . $course_id . '&lesson_id=' . (int) $item['lesson_id'];
+                            ?>
+                            <?php if ($available): ?>
+                                <a class="list-group-item list-group-item-action <?php echo (int) $item['lesson_id'] === $lesson_id ? 'active' : ''; ?>"
+                                   href="<?php echo htmlspecialchars($item_url, ENT_QUOTES, 'UTF-8'); ?>">
+                            <?php else: ?>
+                                <div class="list-group-item text-muted">
+                            <?php endif; ?>
+                                <div class="d-flex align-items-start gap-2">
+                                    <i class="fas <?php echo (int) $item['is_completed'] === 1 ? 'fa-check-circle text-success' : ($available ? 'fa-play-circle' : 'fa-lock'); ?> mt-1"></i>
+                                    <span class="flex-grow-1"><?php echo htmlspecialchars($item['title'], ENT_QUOTES, 'UTF-8'); ?>
+                                        <?php if ((int) $item['is_previewable'] === 1): ?><small class="d-block">Preview</small><?php endif; ?>
+                                    </span>
+                                    <?php if (!empty($item['duration_minutes'])): ?><small><?php echo (int) $item['duration_minutes']; ?>m</small><?php endif; ?>
+                                </div>
+                            <?php if ($available): ?></a><?php else: ?></div><?php endif; ?>
+                        <?php endforeach; ?>
+                    </div>
+                    <?php if (!$is_enrolled): ?>
+                        <div class="card-body">
+                            <p class="small text-muted">Enroll in this course to unlock the full playlist.</p>
+                            <a class="btn btn-primary w-100" href="course_detail.php?id=<?php echo $course_id; ?>">View course and enroll</a>
+                        </div>
+                    <?php endif; ?>
+                </section>
+            </aside>
         </div>
-    </footer>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+    <?php endif; ?>
+</div>
+<?php include __DIR__ . '/../includes/dashboard_footer.php'; ?>

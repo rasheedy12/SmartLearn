@@ -283,6 +283,29 @@ CREATE TABLE `payments` (
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Paystack course purchases use a separate table so existing legacy payment
+-- records can be migrated independently without blocking course enrollment.
+CREATE TABLE `course_payments` (
+  `payment_id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id` bigint(20) UNSIGNED NOT NULL,
+  `course_id` int(10) UNSIGNED NOT NULL,
+  `enrollment_id` int(10) UNSIGNED DEFAULT NULL,
+  `amount` decimal(14,2) NOT NULL,
+  `base_amount_usd` decimal(12,2) NOT NULL,
+  `exchange_rate` decimal(18,8) NOT NULL,
+  `currency` char(3) NOT NULL,
+  `amount_minor` bigint(20) UNSIGNED NOT NULL,
+  `payment_gateway` varchar(50) NOT NULL DEFAULT 'paystack',
+  `reference` varchar(100) NOT NULL,
+  `payment_status` enum('pending','completed','failed') NOT NULL DEFAULT 'pending',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`payment_id`),
+  UNIQUE KEY `uq_course_payments_reference` (`reference`),
+  KEY `idx_course_payments_user_course` (`user_id`,`course_id`),
+  KEY `idx_course_payments_status` (`payment_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- --------------------------------------------------------
 
 --

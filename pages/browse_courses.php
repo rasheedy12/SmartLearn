@@ -12,6 +12,7 @@ $error_message = '';
 $courses = [];
 $categories = [];
 $total_courses = 0;
+$payment_error = trim((string) ($_GET['payment_error'] ?? ''));
 
 try {
     $categories_result = $mysqli->query('SELECT category_id, name FROM categories ORDER BY name');
@@ -78,6 +79,9 @@ function browse_courses_url($page_number)
 <div class="container-fluid">
     <h1 class="mb-3">Browse Courses</h1>
     <p class="lead mb-4">Discover courses published by SmartLearn instructors.</p>
+    <?php if ($payment_error !== ''): ?>
+        <div class="alert alert-danger" role="alert"><?php echo htmlspecialchars($payment_error, ENT_QUOTES, 'UTF-8'); ?></div>
+    <?php endif; ?>
 
     <form class="row g-2 mb-4" method="get" action="browse_courses.php">
         <div class="col-md-8">

@@ -10,6 +10,7 @@ $stmt = $mysqli->prepare(
             CONCAT(u.first_name, \' \', u.last_name) AS instructor_name,
             cat.name AS category_name,
             COUNT(DISTINCT l.lesson_id) AS lesson_count,
+            MIN(l.lesson_id) AS first_lesson_id,
             COUNT(DISTINCT CASE WHEN lp.is_completed = 1 THEN l.lesson_id END) AS lessons_completed
      FROM enrollments e
      INNER JOIN courses c ON c.course_id = e.course_id
@@ -61,6 +62,17 @@ include BASE_URL . 'includes/dashboard_header.php';
                             </div>
                             <?php if ($course['completed_at']): ?>
                                 <span class="badge bg-success mt-3 align-self-start">Completed</span>
+                            <?php endif; ?>
+                            <?php if (!empty($course['first_lesson_id'])): ?>
+                                <a class="btn btn-primary mt-3"
+                                   href="../pages/lesson_view.php?course_id=<?php echo (int) $course['course_id']; ?>&amp;lesson_id=<?php echo (int) $course['first_lesson_id']; ?>">
+                                    Continue learning
+                                </a>
+                            <?php else: ?>
+                                <a class="btn btn-outline-primary mt-3"
+                                   href="../pages/course_detail.php?id=<?php echo (int) $course['course_id']; ?>">
+                                    View course playlist
+                                </a>
                             <?php endif; ?>
                         </div>
                     </div>

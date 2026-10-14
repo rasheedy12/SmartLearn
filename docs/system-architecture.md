@@ -41,6 +41,7 @@ flowchart LR
 | `sections/` | Reusable landing-page content fragments. |
 | `assets/` | CSS, JavaScript, and image assets. |
 | `database/Smartlearn.sql` | Database DDL, indexes, and seed data. |
+| `database/migrations/` | Incremental database changes required by newer features. |
 | MySQL/MariaDB | Persistent user, course, enrollment, assessment, payment, discussion, and related records. |
 
 ## 3. Application structure
@@ -101,7 +102,7 @@ The SQL schema contains these logical areas:
 | Course catalog | `categories`, `courses`, `course_what_you_learn`, `modules`, `lessons` |
 | Enrollment and progress | `enrollments`, `lesson_progress`, `user_notes` |
 | Assessment | `quiz_questions`, `quiz_question_options`, `quiz_attempts`, `quiz_attempt_answers`, `assignment_submissions` |
-| Commerce and feedback | `payments`, `course_reviews` |
+| Commerce and feedback | `payments`, `course_payments`, `course_reviews` |
 | Community | `discussion_forums`, `discussion_threads`, `discussion_posts`, `study_groups`, `study_group_members` |
 | Gamification | `achievements`, `user_achievements` |
 
@@ -133,7 +134,9 @@ erDiagram
     STUDY_GROUPS ||--o{ STUDY_GROUP_MEMBERS : has
     USERS ||--o{ STUDY_GROUP_MEMBERS : joins
     USERS ||--o{ PAYMENTS : makes
+    USERS ||--o{ COURSE_PAYMENTS : makes
     COURSES ||--o{ PAYMENTS : concerns
+    COURSES ||--o{ COURSE_PAYMENTS : concerns
     USERS ||--o{ NOTIFICATIONS : receives
     USERS ||--o{ USER_ACHIEVEMENTS : earns
     ACHIEVEMENTS ||--o{ USER_ACHIEVEMENTS : awards
@@ -146,11 +149,20 @@ The SQL dump defines primary keys, unique indexes, and supporting indexes, but i
 ### Local development
 
 - PHP 7.4 or later with `mysqli`
+- PHP cURL extension enabled for Paystack and exchange-rate API requests
 - MySQL or MariaDB with the `Smartlearn` schema imported
 - Apache/Nginx with PHP, or PHP's built-in development server
 - Browser access to the project root
 
 The checked-in connection configuration currently targets local XAMPP MariaDB through `/opt/lampp/var/mysql/mysql.sock`. That path is specific to one development environment and is not portable to a different host without configuration changes.
+
+### Paystack course payments
+
+- Apply `database/migrations/20261014_create_course_payments.sql` to existing databases. The updated `database/Smartlearn.sql` also includes the new table for fresh imports.
+- Configure the server environment variables `PAYSTACK_SECRET_KEY` and `PAYSTACK_CALLBACK_URL`. The callback URL must be the public HTTPS URL of `pages/paystack_callback.php`; use Paystack test credentials for testing and never expose the secret key to browser code.
+- Course prices are stored in USD. At checkout, the selected supported currency is converted using the current USD exchange rate from ExchangeRate-API; the converted amount and rate are stored with the pending payment.
+- Enrollment is granted only after the callback handler verifies the reference, amount, currency, and successful status directly with Paystack. Currency availability still depends on the merchant's Paystack account.
+- Instructors add YouTube watch URLs as video lessons. Enrolled students get the course playlist; only lessons explicitly marked previewable are available before enrollment.
 
 ### Production boundary
 
