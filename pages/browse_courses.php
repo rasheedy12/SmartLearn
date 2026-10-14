@@ -62,7 +62,7 @@ $categories = array_unique(array_column($all_courses_data, 'category'));
                             <span class="small"><i class="fas fa-star text-warning"></i> <?php echo htmlspecialchars($course['rating']); ?></span>
                         </div>
                         <div class="mt-auto">
-                            <a href="<?php echo BASE_URL; ?>course_detail.php?id=<?php echo $course['id']; ?>" class="btn btn-sm btn-outline-primary w-100">View Details</a>
+                            <a href="course_detail.php?id=<?php echo $course['id']; ?>" class="btn btn-sm btn-outline-primary w-100">View Details</a>
                         </div>
                     </div>
                 </div>

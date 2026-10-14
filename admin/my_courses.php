@@ -1,49 +1,72 @@
 <?php
 define('BASE_URL', '../');
-$page_title = "My Courses";
-$_SESSION['user_role'] = 'student';
-include '../includes/dashboard_header.php';
+require_once BASE_URL . 'includes/student_helpers.php';
+$page_title = 'My Courses';
+$student_id = (int) $_SESSION['user_id'];
 
-$my_courses_data = [
-    ["id" => 1, "abbr" => "JS", "title" => "JavaScript Fundamentals", "instructor" => "Dr. Sarah Chen", "progress" => 65, "bg_color" => "bg-primary", "next_lesson" => "Functions & Scope", "img" => BASE_URL . "assets/images/js.png"],
-    ["id" => 2, "abbr" => "UX", "title" => "UX Design Principles", "instructor" => "Mike Davis", "progress" => 32, "bg_color" => "bg-success", "next_lesson" => "User Research", "img" => BASE_URL . "assets/images/ux.jpg"],
-    ["id" => 3, "abbr" => "PY", "title" => "Python for Data Science", "instructor" => "Dr. Emily White", "progress" => 88, "bg_color" => "bg-info", "next_lesson" => "Final Project Submission", "img" => BASE_URL . "assets/images/py.jpeg"],
-    ["id" => 4, "abbr" => "MK", "title" => "Digital Marketing Essentials", "instructor" => "Johnathan Lee", "progress" => 15, "bg_color" => "bg-warning text-dark", "next_lesson" => "Intro to SEO", "img" => BASE_URL . "assets/images/dme.jpeg"],
-];
+$stmt = $mysqli->prepare(
+    'SELECT e.enrollment_id, e.course_id, e.progress_percentage, e.enrolled_at, e.completed_at,
+            c.title, c.subtitle, c.description, c.thumbnail_url, c.skill_level,
+            CONCAT(u.first_name, \' \', u.last_name) AS instructor_name,
+            cat.name AS category_name,
+            COUNT(DISTINCT l.lesson_id) AS lesson_count,
+            COUNT(DISTINCT CASE WHEN lp.is_completed = 1 THEN l.lesson_id END) AS lessons_completed
+     FROM enrollments e
+     INNER JOIN courses c ON c.course_id = e.course_id
+     INNER JOIN users u ON u.user_id = c.instructor_id
+     LEFT JOIN categories cat ON cat.category_id = c.category_id
+     LEFT JOIN modules m ON m.course_id = c.course_id
+     LEFT JOIN lessons l ON l.module_id = m.module_id
+     LEFT JOIN lesson_progress lp ON lp.lesson_id = l.lesson_id AND lp.enrollment_id = e.enrollment_id
+     WHERE e.user_id = ?
+     GROUP BY e.enrollment_id, e.course_id, e.progress_percentage, e.enrolled_at, e.completed_at,
+              c.title, c.subtitle, c.description, c.thumbnail_url, c.skill_level,
+              u.first_name, u.last_name, cat.name
+     ORDER BY e.completed_at IS NOT NULL, e.enrolled_at DESC'
+);
+$stmt->bind_param('i', $student_id);
+$stmt->execute();
+$my_courses_data = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+include BASE_URL . 'includes/dashboard_header.php';
 ?>
 <div class="container-fluid">
     <h1 class="h2 mb-4">My Courses</h1>
-    <p class="lead mb-4">Here are all the courses you are currently enrolled in. Keep up the great work!</p>
+    <p class="lead mb-4">Your enrolled courses and learning progress.</p>
 
-    <?php if(empty($my_courses_data)): ?>
+    <?php if (!$my_courses_data): ?>
         <div class="alert alert-info text-center">
-            <h4 class="alert-heading">No Courses Yet!</h4>
-            <p>You haven't enrolled in any courses. Ready to start learning something new?</p>
-            <hr>
-            <a href="<?php echo BASE_URL; ?>browse_courses.php" class="btn btn-primary"><i class="fas fa-search me-2"></i>Browse Courses</a>
+            <h2 class="h4 alert-heading">No Courses Yet</h2>
+            <p>You are not enrolled in a course yet. Browse the catalog to find one.</p>
+            <a href="../pages/browse_courses.php" class="btn btn-primary"><i class="fas fa-search me-2"></i>Browse Courses</a>
         </div>
     <?php else: ?>
         <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
-            <?php foreach($my_courses_data as $course): ?>
-            <div class="col">
-                <div class="card h-100 shadow-sm course-listing-card">
-                    <img src="<?php echo htmlspecialchars($course['img']); ?>" class="card-img-top" alt="<?php echo htmlspecialchars($course['title']); ?>" style="height: 180px; object-fit: cover;" onerror="this.src='https://placehold.co/600x400/EAEAEA/<?php echo substr(htmlspecialchars($course['bg_color']),3); ?>?text=<?php echo htmlspecialchars($course['abbr']); ?>&font=montserrat'">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><?php echo htmlspecialchars($course['title']); ?></h5>
-                        <p class="card-text small text-muted mb-2">By <?php echo htmlspecialchars($course['instructor']); ?></p>
-                        <div class="mt-auto">
-                             <p class="card-text small mb-1">Progress: <?php echo $course['progress']; ?>%</p>
-                            <div class="progress mb-2" style="height: 8px;">
-                                <div class="progress-bar <?php echo htmlspecialchars($course['bg_color']); ?>" role="progressbar" style="width: <?php echo $course['progress']; ?>%;" aria-valuenow="<?php echo $course['progress']; ?>" aria-valuemin="0" aria-valuemax="100"></div>
+            <?php foreach ($my_courses_data as $course): ?>
+                <?php $progress = (int) $course['progress_percentage']; ?>
+                <div class="col" id="course-<?php echo (int) $course['course_id']; ?>">
+                    <div class="card h-100 shadow-sm course-listing-card">
+                        <?php if (!empty($course['thumbnail_url'])): ?>
+                            <?php $thumbnail = filter_var($course['thumbnail_url'], FILTER_VALIDATE_URL) ? $course['thumbnail_url'] : BASE_URL . ltrim($course['thumbnail_url'], '/'); ?>
+                            <img src="<?php echo htmlspecialchars($thumbnail, ENT_QUOTES, 'UTF-8'); ?>" class="card-img-top" alt="" style="height: 180px; object-fit: cover;">
+                        <?php endif; ?>
+                        <div class="card-body d-flex flex-column">
+                            <h2 class="h5 card-title"><?php echo htmlspecialchars($course['title'], ENT_QUOTES, 'UTF-8'); ?></h2>
+                            <p class="card-text small text-muted mb-2">By <?php echo htmlspecialchars($course['instructor_name'], ENT_QUOTES, 'UTF-8'); ?></p>
+                            <p class="card-text small"><?php echo htmlspecialchars($course['category_name'] ?: ucfirst($course['skill_level']), ENT_QUOTES, 'UTF-8'); ?></p>
+                            <p class="card-text small mb-1">Progress: <?php echo $progress; ?>% (<?php echo (int) $course['lessons_completed']; ?>/<?php echo (int) $course['lesson_count']; ?> lessons completed)</p>
+                            <div class="progress mt-auto" style="height: 8px;">
+                                <div class="progress-bar" role="progressbar" style="width: <?php echo $progress; ?>%;" aria-valuenow="<?php echo $progress; ?>" aria-valuemin="0" aria-valuemax="100"></div>
                             </div>
-                            <p class="card-text small text-muted mb-2">Next: <?php echo htmlspecialchars($course['next_lesson']); ?></p>
-                            <a href="<?php echo BASE_URL; ?>course_detail.php?id=<?php echo $course['id']; ?>" class="btn btn-sm <?php echo htmlspecialchars($course['bg_color']); ?> text-white w-100">Continue Learning</a>
+                            <?php if ($course['completed_at']): ?>
+                                <span class="badge bg-success mt-3 align-self-start">Completed</span>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
-            </div>
             <?php endforeach; ?>
         </div>
     <?php endif; ?>
 </div>
-<?php include '../includes/dashboard_footer.php'; ?>
+<?php include BASE_URL . 'includes/dashboard_footer.php'; ?>

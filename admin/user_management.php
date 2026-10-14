@@ -12,6 +12,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             'approve' => ['pending_approval', 'active', 'Instructor account approved.'],
             'suspend' => ['active', 'suspended', 'User suspended.'],
             'activate' => ['suspended', 'active', 'User activated.'],
+            'restore' => ['deleted', 'active', 'User account restored and activated.'],
             'delete' => ['*', 'deleted', 'User account deactivated.'],
         ];
         $action = $_POST['action'] ?? '';
@@ -153,7 +154,11 @@ include BASE_URL . 'includes/dashboard_header.php';
                                         <?php if ($is_current_user): ?>
                                             <span class="text-muted small">Current account</span>
                                         <?php elseif ($user['status'] === 'deleted'): ?>
-                                            <span class="text-muted small">Deactivated</span>
+                                            <form method="post">
+                                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(admin_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+                                                <input type="hidden" name="user_id" value="<?php echo (int) $user['user_id']; ?>">
+                                                <button class="btn btn-sm btn-outline-success" name="action" value="restore" type="submit">Restore &amp; Activate</button>
+                                            </form>
                                         <?php else: ?>
                                             <form method="post" class="d-flex gap-1">
                                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(admin_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">

@@ -6,11 +6,15 @@ if (session_status() == PHP_SESSION_NONE) {
 $user_role_sidebar = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : 'student';
 $current_page_sidebar = basename($_SERVER['PHP_SELF']);
 
-// Define correct base paths for admin pages.
 $current_dir = rtrim(dirname($_SERVER['PHP_SELF']), '/');
 $current_dir = str_replace('\\', '/', $current_dir);
-$base = ($current_dir === '/admin' || $current_dir === 'admin') ? './' : '../';
-$logout_url = ($current_dir === '/admin' || $current_dir === 'admin') ? '../auth/handle_logout.php' : 'auth/handle_logout.php';
+$is_admin_dir = $current_dir === '/admin' || $current_dir === 'admin';
+$is_pages_dir = $current_dir === '/pages' || $current_dir === 'pages';
+$base = $is_admin_dir ? './' : ($is_pages_dir ? '../admin/' : 'admin/');
+$browse_courses_url = $is_admin_dir
+    ? '../pages/browse_courses.php'
+    : ($is_pages_dir ? 'browse_courses.php' : 'pages/browse_courses.php');
+$logout_url = ($is_admin_dir || $is_pages_dir) ? '../auth/handle_logout.php' : 'auth/handle_logout.php';
 
 $sidebar_links = [
     'common' => [
@@ -19,7 +23,7 @@ $sidebar_links = [
     'student' => [
         ['heading' => 'Learning'],
         ['label' => 'My Courses', 'icon' => 'fas fa-book', 'link' => $base . 'my_courses.php'],
-        ['label' => 'Browse Courses', 'icon' => 'fas fa-search', 'link' => $base . 'browse_courses.php'],
+        ['label' => 'Browse Courses', 'icon' => 'fas fa-search', 'link' => $browse_courses_url],
         ['label' => 'Assignments', 'icon' => 'fas fa-tasks', 'link' => $base . 'assignments.php'],
         ['label' => 'Study Buddies', 'icon' => 'fas fa-user-friends', 'link' => $base . 'study_buddy.php'],
         ['label' => 'My Progress', 'icon' => 'fas fa-chart-line', 'link' => $base . 'progress.php'],

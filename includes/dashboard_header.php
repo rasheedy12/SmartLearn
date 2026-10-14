@@ -24,8 +24,10 @@ $page_title_auto = isset($page_title) ? htmlspecialchars($page_title) : ucfirst(
 
 $current_dir = rtrim(dirname($_SERVER['PHP_SELF']), '/');
 $current_dir = str_replace('\\', '/', $current_dir);
-$profile_url = ($current_dir === '/admin' || $current_dir === 'admin') ? 'profile.php' : '../admin/profile.php';
-$logout_url = ($current_dir === '/admin' || $current_dir === 'admin') ? '../auth/handle_logout.php' : 'auth/handle_logout.php';
+$is_admin_dir = $current_dir === '/admin' || $current_dir === 'admin';
+$is_pages_dir = $current_dir === '/pages' || $current_dir === 'pages';
+$profile_url = $is_admin_dir ? 'profile.php' : ($is_pages_dir ? '../admin/profile.php' : 'admin/profile.php');
+$logout_url = ($is_admin_dir || $is_pages_dir) ? '../auth/handle_logout.php' : 'auth/handle_logout.php';
 
 ?>
 <!DOCTYPE html>
