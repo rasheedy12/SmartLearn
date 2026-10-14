@@ -23,12 +23,12 @@ include '../includes/header.php';
             <p class="form-text text-muted">Enter your credentials to access your dashboard</p>
 
             <?php
-            // if (isset($_GET['error'])) {
-            //     echo '<div class="alert alert-danger">' . htmlspecialchars($_GET['error']) . '</div>';
-            // }
-            // if (isset($_GET['success'])) {
-            //     echo '<div class="alert alert-success">' . htmlspecialchars($_GET['success']) . '</div>';
-            // }
+            if (isset($_GET['error'])) {
+                echo '<div class="alert alert-danger">' . htmlspecialchars($_GET['error'], ENT_QUOTES, 'UTF-8') . '</div>';
+            }
+            if (isset($_GET['success'])) {
+                echo '<div class="alert alert-success">' . htmlspecialchars($_GET['success'], ENT_QUOTES, 'UTF-8') . '</div>';
+            }
             ?>
 
             <form action="<?php echo BASE_URL; ?>auth/handle_login.php" method="POST">

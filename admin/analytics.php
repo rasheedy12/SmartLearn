@@ -1,104 +1,95 @@
 <?php
 define('BASE_URL', '../');
-$page_title = "Course Analytics";
-$_SESSION['user_role'] = 'instructor';
-$use_charts = true; // This page will use charts
-include '../includes/dashboard_header.php';
+require_once BASE_URL . 'includes/instructor_helpers.php';
+$instructor_id = (int) $_SESSION['user_id'];
+$course_id = isset($_GET['course_id']) ? filter_var($_GET['course_id'], FILTER_VALIDATE_INT) : null;
+if ($course_id !== null && (!$course_id || $course_id < 1)) {
+    http_response_code(400);
+    exit('Invalid course.');
+}
 
-// Mock: $course_id = isset($_GET['course_id']) ? intval($_GET['course_id']) : null;
-// Fetch analytics data for this instructor, optionally filtered by course_id
-$analytics_summary = [
-    'total_students' => 247,
-    'avg_completion_rate' => '78%',
-    'total_revenue' => '$5,870', // For courses with pricing
-    'top_performing_course' => 'Web Development Bootcamp',
-];
-$course_specific_analytics = [
-    'web_dev' => ['name' => 'Web Development Bootcamp', 'students' => 156, 'completion' => 85, 'avg_score' => '88%', 'discussion_posts' => 120],
-    'cs_fun' => ['name' => 'CS Fundamentals', 'students' => 89, 'completion' => 70, 'avg_score' => '75%', 'discussion_posts' => 75],
-];
+$where = ' WHERE c.instructor_id = ?';
+$types = 'i';
+$params = [$instructor_id];
+if ($course_id !== null) {
+    instructor_require_course($mysqli, $course_id, $instructor_id);
+    $where .= ' AND c.course_id = ?';
+    $types .= 'i';
+    $params[] = $course_id;
+}
+
+$stmt = $mysqli->prepare(
+    'SELECT COUNT(DISTINCT e.user_id) AS total_students,
+            COALESCE(ROUND(AVG(e.progress_percentage)), 0) AS completion_rate,
+            COALESCE(SUM(CASE WHEN e.completed_at IS NOT NULL THEN c.price ELSE 0 END), 0) AS revenue,
+            c.course_id, c.title,
+            COUNT(DISTINCT e.enrollment_id) AS course_students,
+            COALESCE(ROUND(AVG(e.progress_percentage)), 0) AS course_completion
+     FROM courses c
+     LEFT JOIN enrollments e ON e.course_id = c.course_id'
+     . $where .
+     ' GROUP BY c.course_id, c.title ORDER BY course_students DESC, c.title'
+);
+$stmt->bind_param($types, ...$params);
+$stmt->execute();
+$course_rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$stmt->close();
+
+$total_students = 0;
+$weighted_progress = 0;
+$total_revenue = 0.0;
+$top_course = null;
+foreach ($course_rows as $row) {
+    $total_students += (int) $row['course_students'];
+    $weighted_progress += (int) $row['course_students'] * (int) $row['course_completion'];
+    $total_revenue += (float) $row['revenue'];
+    if ($top_course === null && (int) $row['course_students'] > 0) {
+        $top_course = $row['title'];
+    }
+}
+$average_completion = $total_students > 0 ? (int) round($weighted_progress / $total_students) : 0;
+$page_title = 'Course Analytics';
+include BASE_URL . 'includes/dashboard_header.php';
 ?>
 <div class="container-fluid">
-    <h1 class="h2 mb-4">Course Analytics</h1> 
-    <p class="lead mb-4">Gain insights into your course performance and student engagement.</p>
-
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="stat-card h-100"><h6>Total Students</h6><div class="stat-value"><?php echo $analytics_summary['total_students']; ?></div></div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-card h-100"><h6>Avg. Completion</h6><div class="stat-value"><?php echo $analytics_summary['avg_completion_rate']; ?></div></div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-card h-100"><h6>Total Revenue</h6><div class="stat-value"><?php echo $analytics_summary['total_revenue']; ?></div></div>
-        </div>
-        <div class="col-md-3">
-            <div class="stat-card h-100"><h6>Top Course</h6><div class="stat-value fs-5"><?php echo htmlspecialchars($analytics_summary['top_performing_course']); ?></div></div>
-        </div>
-    </div>
-
-    <div class="card shadow-sm mb-4">
-        <div class="card-header bg-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">Student Engagement Overview</h5>
-            <select class="form-select form-select-sm" style="max-width: 250px;">
-                <option selected>All Courses</option>
-                <option value="web_dev">Web Development Bootcamp</option>
-                <option value="cs_fun">CS Fundamentals</option>
+    <h1 class="h2 mb-4">Course Analytics</h1>
+    <?php instructor_show_flash(); ?>
+    <p class="lead mb-4">Enrollment and completion metrics from your courses.</p>
+    <form method="get" class="mb-4">
+        <label for="analyticsCourse" class="form-label">Filter by course</label>
+        <div class="d-flex gap-2">
+            <select id="analyticsCourse" name="course_id" class="form-select" style="max-width: 400px;">
+                <option value="">All my courses</option>
+                <?php foreach ($course_rows as $course): ?>
+                    <option value="<?php echo (int) $course['course_id']; ?>" <?php echo (string) $course_id === (string) $course['course_id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($course['title'], ENT_QUOTES, 'UTF-8'); ?></option>
+                <?php endforeach; ?>
             </select>
+            <button class="btn btn-outline-primary" type="submit">Apply</button>
         </div>
-        <div class="card-body">
-            <div class="chart-container" style="height:300px;">
-                <canvas id="studentEngagementChart"></canvas> 
-            </div>
-             <p class="text-muted text-center small mt-2">Mock chart: Active students vs. time spent.</p>
-        </div>
+    </form>
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3"><div class="stat-card h-100"><h6>Enrollments</h6><div class="stat-value"><?php echo number_format($total_students); ?></div></div></div>
+        <div class="col-md-3 mb-3"><div class="stat-card h-100"><h6>Average Completion</h6><div class="stat-value"><?php echo $average_completion; ?>%</div></div></div>
+        <div class="col-md-3 mb-3"><div class="stat-card h-100"><h6>Completed-course Revenue</h6><div class="stat-value">$<?php echo number_format($total_revenue, 2); ?></div></div></div>
+        <div class="col-md-3 mb-3"><div class="stat-card h-100"><h6>Top Enrolled Course</h6><div class="stat-value fs-5"><?php echo htmlspecialchars($top_course ?: 'No enrollments yet', ENT_QUOTES, 'UTF-8'); ?></div></div></div>
     </div>
-
     <div class="card shadow-sm">
-        <div class="card-header bg-white">
-            <h5 class="mb-0">Detailed Course Performance</h5>
-        </div>
+        <div class="card-header bg-white"><h5 class="mb-0">Course Performance</h5></div>
         <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
+            <?php if (!$course_rows): ?><p class="p-4 text-muted mb-0">No courses match this filter.</p><?php else: ?>
+                <div class="table-responsive"><table class="table table-hover mb-0">
+                    <thead class="table-light"><tr><th>Course</th><th>Enrolled Students</th><th>Completion Rate</th><th>Student Roster</th></tr></thead>
+                    <tbody><?php foreach ($course_rows as $course): ?>
                         <tr>
-                            <th>Course Name</th>
-                            <th>Enrolled Students</th>
-                            <th>Completion Rate</th>
-                            <th>Avg. Quiz Score</th>
-                            <th>Discussion Posts</th>
-                            <th>Actions</th>
+                            <td><?php echo htmlspecialchars($course['title'], ENT_QUOTES, 'UTF-8'); ?></td>
+                            <td><?php echo number_format((int) $course['course_students']); ?></td>
+                            <td><?php echo (int) $course['course_completion']; ?>%</td>
+                            <td><a href="<?php echo BASE_URL; ?>students_list.php?course_id=<?php echo (int) $course['course_id']; ?>" class="btn btn-sm btn-outline-primary">View Students</a></td>
                         </tr>
-                    </thead>
-                    <tbody>
-                    <?php foreach($course_specific_analytics as $course_analytic): ?>
-                        <tr>
-                            <td><strong><?php echo htmlspecialchars($course_analytic['name']); ?></strong></td>
-                            <td><?php echo $course_analytic['students']; ?></td>
-                            <td><?php echo $course_analytic['completion']; ?>%</td>
-                            <td><?php echo htmlspecialchars($course_analytic['avg_score']); ?></td>
-                            <td><?php echo $course_analytic['discussion_posts']; ?></td>
-                            <td><a href="#" class="btn btn-sm btn-outline-primary">View Full Report</a></td>
-                        </tr>
-                    <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
+                    <?php endforeach; ?></tbody>
+                </table></div>
+            <?php endif; ?>
         </div>
     </div>
 </div>
-<?php
-$chart_data_instructor = [
-    'studentEngagement' => [
-        'labels' => ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
-        'datasets' => [
-            ['label' => 'Active Students', 'data' => [150, 180, 165, 200], 'borderColor' => 'rgba(0, 123, 255, 1)', 'tension' => 0.3],
-            ['label' => 'Avg. Time Spent (hrs)', 'data' => [2.5, 3, 2.8, 3.5], 'borderColor' => 'rgba(255, 193, 7, 1)', 'tension' => 0.3, 'yAxisID' => 'y1'],
-        ]
-    ]
-];
-echo '<script>const chartData = ' . (isset($chartData) ? json_encode(array_merge($chartData, $chart_data_instructor)) : json_encode($chart_data_instructor)) . ';</script>';
-$extra_js = [BASE_URL . 'assets/js/dashboard_charts.js'];
-include '../includes/dashboard_footer.php';
-?>
+<?php include BASE_URL . 'includes/dashboard_footer.php'; ?>

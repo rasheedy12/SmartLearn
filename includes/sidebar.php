@@ -30,7 +30,7 @@ $sidebar_links = [
         ['label' => 'Create Course', 'icon' => 'fas fa-plus-circle', 'link' => $base . 'create_course.php'],
         ['label' => 'Students', 'icon' => 'fas fa-users', 'link' => $base . 'students_list.php'],
         ['label' => 'Analytics', 'icon' => 'fas fa-chart-pie', 'link' => $base . 'analytics.php'],
-        ['label' => 'Announcements', 'icon' => 'fas fa-bullhorn', 'link' => '#'],
+        ['label' => 'Announcements', 'icon' => 'fas fa-bullhorn', 'link' => $base . 'announcements.php'],
     ],
     'admin' => [
         ['heading' => 'Management'],
@@ -100,5 +100,4 @@ function render_sidebar_links_recursive($links_array, $current_page_sidebar) {
         ?>
     </ul>
 </nav>
-
 
