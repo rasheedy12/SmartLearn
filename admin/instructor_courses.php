@@ -24,14 +24,14 @@ include BASE_URL . 'includes/dashboard_header.php';
     <?php instructor_show_flash(); ?>
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
         <p class="lead mb-0">Manage your courses, view student progress, and create new learning experiences.</p>
-        <a href="<?php echo BASE_URL; ?>create_course.php" class="btn btn-primary"><i class="fas fa-plus me-2"></i>Create New Course</a>
+        <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>create_course.php" class="btn btn-primary"><i class="fas fa-plus me-2"></i>Create New Course</a>
     </div>
 
     <?php if (!$courses): ?>
         <div class="alert alert-info text-center">
             <h4 class="alert-heading">No Courses Created Yet</h4>
             <p>Ready to share your knowledge? Create your first course and start teaching.</p>
-            <a href="<?php echo BASE_URL; ?>create_course.php" class="btn btn-success">Create Your First Course</a>
+            <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>create_course.php" class="btn btn-success">Create Your First Course</a>
         </div>
     <?php else: ?>
         <div class="card shadow-sm">
@@ -49,9 +49,9 @@ include BASE_URL . 'includes/dashboard_header.php';
                                     <td><span class="badge bg-<?php echo $course['status'] === 'published' ? 'success' : ($course['status'] === 'rejected' ? 'danger' : 'secondary'); ?>"><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $course['status'])), ENT_QUOTES, 'UTF-8'); ?></span></td>
                                     <td><?php echo htmlspecialchars(date('M d, Y', strtotime($course['updated_at'])), ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td class="text-nowrap">
-                                        <a href="<?php echo BASE_URL; ?>course_content.php?course_id=<?php echo (int) $course['course_id']; ?>" class="btn btn-sm btn-outline-primary" title="Manage Content"><i class="fas fa-edit"></i></a>
-                                        <a href="<?php echo BASE_URL; ?>analytics.php?course_id=<?php echo (int) $course['course_id']; ?>" class="btn btn-sm btn-outline-info" title="View Analytics"><i class="fas fa-chart-line"></i></a>
-                                        <a href="<?php echo BASE_URL; ?>students_list.php?course_id=<?php echo (int) $course['course_id']; ?>" class="btn btn-sm btn-outline-secondary" title="Manage Students"><i class="fas fa-users"></i></a>
+                                        <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>course_content.php?course_id=<?php echo (int) $course['course_id']; ?>" class="btn btn-sm btn-outline-primary" title="Manage Content"><i class="fas fa-edit"></i></a>
+                                        <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>analytics.php?course_id=<?php echo (int) $course['course_id']; ?>" class="btn btn-sm btn-outline-info" title="View Analytics"><i class="fas fa-chart-line"></i></a>
+                                        <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>students_list.php?course_id=<?php echo (int) $course['course_id']; ?>" class="btn btn-sm btn-outline-secondary" title="Manage Students"><i class="fas fa-users"></i></a>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

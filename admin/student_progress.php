@@ -33,7 +33,7 @@ include BASE_URL . 'includes/dashboard_header.php';
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="h2 mb-0">Student Progress</h1>
-        <a href="<?php echo BASE_URL; ?>students_list.php" class="btn btn-outline-secondary">Back to Students</a>
+        <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>students_list.php" class="btn btn-outline-secondary">Back to Students</a>
     </div>
     <div class="card shadow-sm mb-4">
         <div class="card-body">

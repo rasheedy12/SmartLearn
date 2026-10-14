@@ -84,7 +84,7 @@ include BASE_URL . 'includes/dashboard_header.php';
                             <td><?php echo htmlspecialchars($course['title'], ENT_QUOTES, 'UTF-8'); ?></td>
                             <td><?php echo number_format((int) $course['course_students']); ?></td>
                             <td><?php echo (int) $course['course_completion']; ?>%</td>
-                            <td><a href="<?php echo BASE_URL; ?>students_list.php?course_id=<?php echo (int) $course['course_id']; ?>" class="btn btn-sm btn-outline-primary">View Students</a></td>
+                            <td><a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>students_list.php?course_id=<?php echo (int) $course['course_id']; ?>" class="btn btn-sm btn-outline-primary">View Students</a></td>
                         </tr>
                     <?php endforeach; ?></tbody>
                 </table></div>

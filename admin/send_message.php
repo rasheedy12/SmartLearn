@@ -66,7 +66,7 @@ include BASE_URL . 'includes/dashboard_header.php';
                 <div class="mb-3"><label class="form-label" for="messageTitle">Subject</label><input class="form-control" id="messageTitle" name="title" maxlength="255" required value="<?php echo htmlspecialchars($_POST['title'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"></div>
                 <div class="mb-3"><label class="form-label" for="messageBody">Message</label><textarea class="form-control" id="messageBody" name="message" rows="5" required><?php echo htmlspecialchars($_POST['message'] ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea></div>
                 <button class="btn btn-primary" type="submit">Send Message</button>
-                <a href="<?php echo BASE_URL; ?>students_list.php" class="btn btn-outline-secondary">Cancel</a>
+                <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>students_list.php" class="btn btn-outline-secondary">Cancel</a>
             </form>
         </div>
     </div>

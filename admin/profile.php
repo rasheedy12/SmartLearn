@@ -1,14 +1,17 @@
 <?php
 define('BASE_URL', '../');
 $page_title = "My Profile";
-// The dashboard header will start the session and can include db_config.php
-include '../includes/dashboard_header.php';
 
-// Check if user is logged in, if not, redirect to login page
-if(!isset($_SESSION["loggedin"]) || $_SESSION["loggedin"] !== true){
-    header("location: " . BASE_URL . "login.php");
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+if (!isset($_SESSION['loggedin'], $_SESSION['user_id']) || $_SESSION['loggedin'] !== true) {
+    header('Location: ' . BASE_URL . 'pages/login.php');
     exit;
 }
+
+require_once BASE_URL . 'includes/db_config.php';
 
 // Fetch current user data from the database
 $current_user_id = $_SESSION['user_id'];
@@ -43,9 +46,10 @@ $success_message = isset($_SESSION['success_message']) ? $_SESSION['success_mess
 $error_message = isset($_SESSION['error_message']) ? $_SESSION['error_message'] : null;
 unset($_SESSION['success_message']); // Clear after displaying
 unset($_SESSION['error_message']); // Clear after displaying
+
+include BASE_URL . 'includes/dashboard_header.php';
 ?>
 <div class="container-fluid">
-    {/* The H1 title "My Profile" is now part of the dashboard_header.php logic */}
     <p class="lead mb-4">Manage your account details, preferences, and security settings.</p>
 
     <?php if ($success_message): ?>

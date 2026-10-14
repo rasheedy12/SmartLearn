@@ -142,7 +142,7 @@ include BASE_URL . 'includes/dashboard_header.php';
         </div>
     <?php endif; ?>
 
-    <form action="<?php echo BASE_URL; ?>create_course.php" method="POST" enctype="multipart/form-data">
+    <form action="<?php echo INSTRUCTOR_ADMIN_URL; ?>create_course.php" method="POST" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(instructor_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
         <div class="card shadow-sm mb-4">
             <div class="card-header bg-white"><h5 class="mb-0">Basic Information</h5></div>

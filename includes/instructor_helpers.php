@@ -3,6 +3,8 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
+define('INSTRUCTOR_ADMIN_URL', './');
+
 if (!isset($_SESSION['loggedin'], $_SESSION['user_role'], $_SESSION['user_id'])
     || $_SESSION['loggedin'] !== true
     || $_SESSION['user_role'] !== 'instructor') {

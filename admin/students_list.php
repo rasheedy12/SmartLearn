@@ -71,7 +71,7 @@ include BASE_URL . 'includes/dashboard_header.php';
                 </select>
                 <button class="btn btn-sm btn-outline-primary" type="submit">Filter</button>
                 <?php if ($search !== '' || $course_id || $at_risk_only): ?>
-                    <a class="btn btn-sm btn-outline-secondary" href="<?php echo BASE_URL; ?>students_list.php">Clear</a>
+                    <a class="btn btn-sm btn-outline-secondary" href="<?php echo INSTRUCTOR_ADMIN_URL; ?>students_list.php">Clear</a>
                 <?php endif; ?>
             </form>
         </div>
@@ -96,8 +96,8 @@ include BASE_URL . 'includes/dashboard_header.php';
                                     </td>
                                     <td><?php echo $student['last_login_at'] ? htmlspecialchars(date('M d, Y', strtotime($student['last_login_at'])), ENT_QUOTES, 'UTF-8') : 'Never'; ?></td>
                                     <td class="text-nowrap">
-                                        <a href="<?php echo BASE_URL; ?>student_progress.php?user_id=<?php echo (int) $student['user_id']; ?>" class="btn btn-sm btn-outline-primary" title="View Progress"><i class="fas fa-chart-bar"></i></a>
-                                        <a href="<?php echo BASE_URL; ?>send_message.php?user_id=<?php echo (int) $student['user_id']; ?>" class="btn btn-sm btn-outline-secondary" title="Send Message"><i class="fas fa-envelope"></i></a>
+                                        <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>student_progress.php?user_id=<?php echo (int) $student['user_id']; ?>" class="btn btn-sm btn-outline-primary" title="View Progress"><i class="fas fa-chart-bar"></i></a>
+                                        <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>send_message.php?user_id=<?php echo (int) $student['user_id']; ?>" class="btn btn-sm btn-outline-secondary" title="Send Message"><i class="fas fa-envelope"></i></a>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>

@@ -111,7 +111,7 @@ include BASE_URL . 'includes/dashboard_header.php';
     <h3 class="h4 mb-3">Teaching Overview</h3>
     <div class="row">
         <div class="col-xl-3 col-md-6 mb-4">
-            <a class="text-decoration-none text-reset" href="<?php echo BASE_URL; ?>students_list.php">
+            <a class="text-decoration-none text-reset" href="<?php echo INSTRUCTOR_ADMIN_URL; ?>students_list.php">
                 <div class="stat-card h-100">
                     <div class="d-flex justify-content-between align-items-center">
                         <h6>Active Students</h6><i class="fas fa-users icon-lg text-primary"></i>
@@ -122,7 +122,7 @@ include BASE_URL . 'includes/dashboard_header.php';
             </a>
         </div>
         <div class="col-xl-3 col-md-6 mb-4">
-            <a class="text-decoration-none text-reset" href="<?php echo BASE_URL; ?>analytics.php">
+            <a class="text-decoration-none text-reset" href="<?php echo INSTRUCTOR_ADMIN_URL; ?>analytics.php">
                 <div class="stat-card h-100">
                     <div class="d-flex justify-content-between align-items-center">
                         <h6>Avg. Completion Rate</h6><i class="fas fa-tasks icon-lg text-success"></i>
@@ -133,7 +133,7 @@ include BASE_URL . 'includes/dashboard_header.php';
             </a>
         </div>
         <div class="col-xl-3 col-md-6 mb-4">
-            <a class="text-decoration-none text-reset" href="<?php echo BASE_URL; ?>students_list.php?at_risk=1">
+            <a class="text-decoration-none text-reset" href="<?php echo INSTRUCTOR_ADMIN_URL; ?>students_list.php?at_risk=1">
                 <div class="stat-card h-100">
                     <div class="d-flex justify-content-between align-items-center">
                         <h6>At-Risk Students</h6><i class="fas fa-user-graduate icon-lg text-warning"></i>
@@ -144,7 +144,7 @@ include BASE_URL . 'includes/dashboard_header.php';
             </a>
         </div>
         <div class="col-xl-3 col-md-6 mb-4">
-            <a class="text-decoration-none text-reset" href="<?php echo BASE_URL; ?>students_list.php">
+            <a class="text-decoration-none text-reset" href="<?php echo INSTRUCTOR_ADMIN_URL; ?>students_list.php">
                 <div class="stat-card h-100">
                     <div class="d-flex justify-content-between align-items-center">
                         <h6>Unread Messages</h6><i class="fas fa-envelope icon-lg text-info"></i>
@@ -160,14 +160,14 @@ include BASE_URL . 'includes/dashboard_header.php';
         <div class="col-lg-8 mb-4">
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h3 class="h4 mb-0">My Courses</h3>
-                <a href="<?php echo BASE_URL; ?>create_course.php" class="btn btn-primary btn-sm">
+                <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>create_course.php" class="btn btn-primary btn-sm">
                     <i class="fas fa-plus me-1"></i> Create Course
                 </a>
             </div>
             <?php if (!$courses): ?>
                 <div class="alert alert-info">
                     You have not created any courses yet.
-                    <a href="<?php echo BASE_URL; ?>create_course.php" class="alert-link">Create your first course.</a>
+                    <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>create_course.php" class="alert-link">Create your first course.</a>
                 </div>
             <?php endif; ?>
             <?php foreach ($courses as $course): ?>
@@ -200,9 +200,9 @@ include BASE_URL . 'includes/dashboard_header.php';
                             <div class="stat-item text-danger">At Risk: <strong><?php echo number_format((int) $course['at_risk_students']); ?> students</strong></div>
                         </div>
                         <div>
-                            <a href="<?php echo BASE_URL; ?>course_content.php?course_id=<?php echo (int) $course['course_id']; ?>" class="btn btn-outline-secondary btn-sm me-1">Manage Content</a>
-                            <a href="<?php echo BASE_URL; ?>analytics.php?course_id=<?php echo (int) $course['course_id']; ?>" class="btn btn-outline-secondary btn-sm me-1">View Analytics</a>
-                            <a href="<?php echo BASE_URL; ?>students_list.php?course_id=<?php echo (int) $course['course_id']; ?>" class="btn btn-outline-secondary btn-sm">Student Progress</a>
+                            <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>course_content.php?course_id=<?php echo (int) $course['course_id']; ?>" class="btn btn-outline-secondary btn-sm me-1">Manage Content</a>
+                            <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>analytics.php?course_id=<?php echo (int) $course['course_id']; ?>" class="btn btn-outline-secondary btn-sm me-1">View Analytics</a>
+                            <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>students_list.php?course_id=<?php echo (int) $course['course_id']; ?>" class="btn btn-outline-secondary btn-sm">Student Progress</a>
                         </div>
                     </div>
                     <div class="course-actions"><span class="badge <?php echo $status_class; ?>"><?php echo $status_label; ?></span></div>
@@ -217,7 +217,7 @@ include BASE_URL . 'includes/dashboard_header.php';
                     <p class="card-text small">
                         <?php echo number_format((int) $summary['at_risk_students']); ?> enrolled students have not logged in for 5+ days.
                     </p>
-                    <form action="<?php echo BASE_URL; ?>send_reminders.php" method="post">
+                    <form action="<?php echo INSTRUCTOR_ADMIN_URL; ?>send_reminders.php" method="post">
                         <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(instructor_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
                         <button type="submit" class="btn btn-danger btn-sm" <?php echo (int) $summary['at_risk_students'] === 0 ? 'disabled' : ''; ?>>Send Reminder</button>
                     </form>
@@ -243,9 +243,9 @@ include BASE_URL . 'includes/dashboard_header.php';
             <div class="card shadow-sm mt-4">
                 <div class="card-header bg-white"><h5 class="mb-0">Quick Actions</h5></div>
                 <div class="list-group list-group-flush quick-action-list">
-                    <a href="<?php echo BASE_URL; ?>analytics.php" class="list-group-item list-group-item-action"><i class="fas fa-chart-line"></i> View Analytics Report</a>
-                    <a href="<?php echo BASE_URL; ?>announcements.php" class="list-group-item list-group-item-action"><i class="fas fa-bullhorn"></i> Send Announcement</a>
-                    <a href="<?php echo BASE_URL; ?>students_list.php?export=csv" class="list-group-item list-group-item-action"><i class="fas fa-file-export"></i> Export Student Data</a>
+                    <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>analytics.php" class="list-group-item list-group-item-action"><i class="fas fa-chart-line"></i> View Analytics Report</a>
+                    <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>announcements.php" class="list-group-item list-group-item-action"><i class="fas fa-bullhorn"></i> Send Announcement</a>
+                    <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>students_list.php?export=csv" class="list-group-item list-group-item-action"><i class="fas fa-file-export"></i> Export Student Data</a>
                 </div>
             </div>
         </div>

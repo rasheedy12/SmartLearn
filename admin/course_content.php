@@ -116,7 +116,7 @@ include BASE_URL . 'includes/dashboard_header.php';
 <div class="container-fluid">
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
         <div><h1 class="h2 mb-1">Manage Course Content</h1><p class="lead mb-0"><?php echo htmlspecialchars($course['title'], ENT_QUOTES, 'UTF-8'); ?></p></div>
-        <a href="<?php echo BASE_URL; ?>instructor_courses.php" class="btn btn-outline-secondary">Back to My Courses</a>
+        <a href="<?php echo INSTRUCTOR_ADMIN_URL; ?>instructor_courses.php" class="btn btn-outline-secondary">Back to My Courses</a>
     </div>
     <?php instructor_show_flash(); ?>
     <?php if ($errors): ?><div class="alert alert-danger"><ul class="mb-0"><?php foreach ($errors as $error): ?><li><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></li><?php endforeach; ?></ul></div><?php endif; ?>
