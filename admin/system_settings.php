@@ -1,7 +1,7 @@
 <?php
 define('BASE_URL', '../');
 $page_title = "System Settings";
-$_SESSION['user_role'] = 'admin';
+require_once BASE_URL . 'includes/admin_helpers.php';
 include '../includes/dashboard_header.php';
 
 // Mock current settings

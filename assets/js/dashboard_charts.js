@@ -33,6 +33,30 @@ document.addEventListener('DOMContentLoaded', function () {
                 plugins: { legend: { display: chartData.userGrowth.datasets.length > 1 } }
             }
         });
+        userGrowthChartInstance.data.datasets.forEach(function (_dataset, index) {
+            userGrowthChartInstance.setDatasetVisibility(index, index === 0);
+        });
+        userGrowthChartInstance.update();
+
+        document.querySelectorAll('[data-growth-role]').forEach(function (button) {
+            button.addEventListener('click', function () {
+                const datasetIndex = button.dataset.growthRole === 'instructor' ? 1 : 0;
+                if (!userGrowthChartInstance.data.datasets[datasetIndex]) {
+                    return;
+                }
+
+                userGrowthChartInstance.data.datasets.forEach(function (_dataset, index) {
+                    userGrowthChartInstance.setDatasetVisibility(index, index === datasetIndex);
+                });
+                userGrowthChartInstance.update();
+
+                document.querySelectorAll('[data-growth-role]').forEach(function (roleButton) {
+                    const selected = roleButton === button;
+                    roleButton.classList.toggle('active', selected);
+                    roleButton.setAttribute('aria-pressed', selected ? 'true' : 'false');
+                });
+            });
+        });
     }
 
     // Learning Activity Chart (Student Progress Page)
@@ -113,4 +137,3 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
 });
-

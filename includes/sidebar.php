@@ -38,7 +38,7 @@ $sidebar_links = [
         ['label' => 'Course Management', 'icon' => 'fas fa-book-medical', 'link' => $base . 'course_management.php'],
         ['label' => 'System Settings', 'icon' => 'fas fa-cogs', 'link' => $base . 'system_settings.php'],
         ['label' => 'Platform Analytics', 'icon' => 'fas fa-chart-bar', 'link' => $base . 'reports.php'],
-        ['label' => 'System Alerts', 'icon' => 'fas fa-exclamation-triangle', 'link' => '#'],
+        ['label' => 'System Alerts', 'icon' => 'fas fa-exclamation-triangle', 'link' => $base . 'admin_dashboard.php#system-alerts'],
     ],
     'account_common' => [
         ['heading' => 'Account'],
@@ -52,7 +52,8 @@ function render_sidebar_links_recursive($links_array, $current_page_sidebar) {
         if (isset($item['heading'])) {
             echo '<li class="sidebar-heading">' . htmlspecialchars($item['heading']) . '</li>';
         } else {
-            $active_class = ($current_page_sidebar == basename($item['link'])) ? 'active' : '';
+            $item_path = parse_url($item['link'], PHP_URL_PATH);
+            $active_class = ($current_page_sidebar == basename($item_path ?: $item['link'])) ? 'active' : '';
             echo '<li class="nav-item">';
             echo '<a class="nav-link ' . $active_class . '" href="' . htmlspecialchars($item['link']) . '">';
             echo '<i class="' . htmlspecialchars($item['icon']) . ' fa-fw"></i>' . htmlspecialchars($item['label']);
@@ -100,4 +101,3 @@ function render_sidebar_links_recursive($links_array, $current_page_sidebar) {
         ?>
     </ul>
 </nav>
-

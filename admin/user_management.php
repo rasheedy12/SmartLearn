@@ -1,99 +1,182 @@
 <?php
 define('BASE_URL', '../');
-$page_title = "User Management";
-$_SESSION['user_role'] = 'admin';
-include '../includes/dashboard_header.php';
+require_once BASE_URL . 'includes/admin_helpers.php';
+$page_title = 'User Management';
 
-$users_data = [
-    ['id' => 1, 'name' => 'John Student', 'avatar' => BASE_URL . 'assets/images/student.jpg', 'email' => 'student@example.com', 'role' => 'Student', 'status' => 'Active', 'joined_date' => '2025-01-15'],
-    ['id' => 2, 'name' => 'Dr. Sarah Chen', 'avatar' => BASE_URL . 'assets/images/instructor.jpg', 'email' => 'instructor@example.com', 'role' => 'Instructor', 'status' => 'Active', 'joined_date' => '2024-11-20'],
-    ['id' => 3, 'name' => 'Admin User', 'avatar' => BASE_URL . 'assets/images/admin.jpg', 'email' => 'admin@example.com', 'role' => 'Admin', 'status' => 'Active', 'joined_date' => '2024-10-01'],
-    ['id' => 104, 'name' => 'Mike Davis (Suspended)', 'avatar' => BASE_URL . 'assets/images/student.jpg', 'email' => 'mike.inactive@example.com', 'role' => 'Student', 'status' => 'Suspended', 'joined_date' => '2025-03-01'],
-];
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+    if (!admin_verify_csrf()) {
+        admin_flash('error', 'Your session expired. Refresh the page and try again.');
+    } else {
+        $user_id = filter_var($_POST['user_id'] ?? null, FILTER_VALIDATE_INT);
+        $actions = [
+            'approve' => ['pending_approval', 'active', 'Instructor account approved.'],
+            'suspend' => ['active', 'suspended', 'User suspended.'],
+            'activate' => ['suspended', 'active', 'User activated.'],
+            'delete' => ['*', 'deleted', 'User account deactivated.'],
+        ];
+        $action = $_POST['action'] ?? '';
+
+        if (!$user_id || $user_id < 1 || !isset($actions[$action])) {
+            admin_flash('error', 'Choose a valid user action.');
+        } elseif ($user_id === (int) $_SESSION['user_id']) {
+            admin_flash('error', 'You cannot change the status of your own administrator account.');
+        } else {
+            [$required_status, $new_status, $success_message] = $actions[$action];
+            $status_sql = $required_status === '*'
+                ? 'UPDATE users SET status = ? WHERE user_id = ? AND status <> \'deleted\''
+                : 'UPDATE users SET status = ? WHERE user_id = ? AND status = ?';
+            $update = $mysqli->prepare($status_sql);
+            if ($required_status === '*') {
+                $update->bind_param('si', $new_status, $user_id);
+            } else {
+                $update->bind_param('sis', $new_status, $user_id, $required_status);
+            }
+            $update->execute();
+            if ($update->affected_rows === 1) {
+                admin_flash('success', $success_message);
+            } else {
+                admin_flash('error', 'The user was not found or no longer has a status that allows this action.');
+            }
+            $update->close();
+        }
+    }
+
+    header('Location: user_management.php');
+    exit;
+}
+
+$search = trim($_GET['search'] ?? '');
+$role = $_GET['role'] ?? '';
+$status = $_GET['status'] ?? '';
+$valid_roles = ['student', 'instructor', 'admin'];
+$valid_statuses = ['active', 'pending_approval', 'suspended', 'deleted'];
+if (!in_array($role, $valid_roles, true)) {
+    $role = '';
+}
+if (!in_array($status, $valid_statuses, true)) {
+    $status = '';
+}
+
+$where = [];
+$params = [];
+$types = '';
+if ($search !== '') {
+    $where[] = '(first_name LIKE ? OR last_name LIKE ? OR email LIKE ?)';
+    $like = '%' . $search . '%';
+    array_push($params, $like, $like, $like);
+    $types .= 'sss';
+}
+if ($role !== '') {
+    $where[] = 'role = ?';
+    $params[] = $role;
+    $types .= 's';
+}
+if ($status !== '') {
+    $where[] = 'status = ?';
+    $params[] = $status;
+    $types .= 's';
+}
+$where_sql = $where ? ' WHERE ' . implode(' AND ', $where) : '';
+$count_stmt = $mysqli->prepare('SELECT COUNT(*) AS total FROM users' . $where_sql);
+if ($params) {
+    $count_stmt->bind_param($types, ...$params);
+}
+$count_stmt->execute();
+$total_users = (int) $count_stmt->get_result()->fetch_assoc()['total'];
+$count_stmt->close();
+
+$users_stmt = $mysqli->prepare(
+    'SELECT user_id, first_name, last_name, email, role, status, avatar_url, created_at
+     FROM users' . $where_sql . ' ORDER BY created_at DESC, user_id DESC'
+);
+if ($params) {
+    $users_stmt->bind_param($types, ...$params);
+}
+$users_stmt->execute();
+$users_data = $users_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$users_stmt->close();
+
+include BASE_URL . 'includes/dashboard_header.php';
 ?>
 <div class="container-fluid">
-    <h1 class="h2 mb-4">User Management</h1> 
-    <p class="lead mb-4">Oversee all platform users, manage roles, and ensure a healthy community.</p>
+    <h1 class="h2 mb-4">User Management</h1>
+    <?php admin_show_flash(); ?>
+    <p class="lead mb-4">Oversee platform users and manage instructor approvals and account status.</p>
 
     <div class="card shadow-sm">
         <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center">
-            <h5 class="mb-0 me-3">All Users</h5>
-            <form class="d-flex my-2 my-md-0" style="min-width: 300px;">
-                <input class="form-control form-control-sm me-2" type="search" placeholder="Search users..." aria-label="Search Users">
-                <select class="form-select form-select-sm me-2" style="max-width: 150px;">
-                    <option selected>All Roles</option>
-                    <option value="student">Student</option>
-                    <option value="instructor">Instructor</option>
-                    <option value="admin">Admin</option>
+            <h2 class="h5 mb-0 me-3">All Users <span class="badge bg-secondary"><?php echo number_format($total_users); ?></span></h2>
+            <form method="get" class="d-flex flex-wrap gap-2 my-2 my-md-0">
+                <input class="form-control form-control-sm" type="search" name="search" value="<?php echo htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>" placeholder="Search name or email" aria-label="Search users">
+                <select class="form-select form-select-sm" name="role" aria-label="Filter by role">
+                    <option value="">All Roles</option>
+                    <?php foreach ($valid_roles as $option): ?>
+                        <option value="<?php echo $option; ?>" <?php echo $role === $option ? 'selected' : ''; ?>><?php echo ucfirst($option); ?></option>
+                    <?php endforeach; ?>
                 </select>
-                <button class="btn btn-sm btn-outline-primary" type="submit"><i class="fas fa-filter"></i></button>
+                <select class="form-select form-select-sm" name="status" aria-label="Filter by status">
+                    <option value="">All Statuses</option>
+                    <?php foreach ($valid_statuses as $option): ?>
+                        <option value="<?php echo $option; ?>" <?php echo $status === $option ? 'selected' : ''; ?>><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $option)), ENT_QUOTES, 'UTF-8'); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button class="btn btn-sm btn-outline-primary" type="submit"><i class="fas fa-filter"></i> Filter</button>
+                <?php if ($search !== '' || $role !== '' || $status !== ''): ?>
+                    <a class="btn btn-sm btn-outline-secondary" href="user_management.php">Clear</a>
+                <?php endif; ?>
             </form>
         </div>
         <div class="card-body p-0">
-            <?php if(empty($users_data)): ?>
-                <p class="text-center text-muted p-4">No users found.</p>
+            <?php if (!$users_data): ?>
+                <p class="text-center text-muted p-4 mb-0">No users match these filters.</p>
             <?php else: ?>
-            <div class="table-responsive">
-                <table class="table table-hover table-striped mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th></th>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Role</th>
-                            <th>Status</th>
-                            <th>Joined Date</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach($users_data as $user): ?>
-                        <tr>
-                            <td><img src="<?php echo htmlspecialchars($user['avatar']); ?>" alt="<?php echo htmlspecialchars($user['name']); ?>" class="rounded-circle" style="width: 32px; height: 32px; object-fit: cover;" onerror="this.src='<?php echo BASE_URL; ?>assets/images/user_avatar_placeholder.png'"></td>
-                            <td><strong><?php echo htmlspecialchars($user['name']); ?></strong></td>
-                            <td><?php echo htmlspecialchars($user['email']); ?></td>
-                            <td><?php echo htmlspecialchars($user['role']); ?></td>
-                            <td>
-                                <span class="badge <?php echo ($user['status'] == 'Active') ? 'bg-success' : 'bg-danger'; ?>">
-                                    <?php echo htmlspecialchars($user['status']); ?>
-                                </span>
-                            </td>
-                            <td><?php echo date("M d, Y", strtotime($user['joined_date'])); ?></td>
-                            <td>
-                                <div class="dropdown">
-                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="userActions<?php echo $user['id']; ?>" data-bs-toggle="dropdown" aria-expanded="false">
-                                        Actions
-                                    </button>
-                                    <ul class="dropdown-menu" aria-labelledby="userActions<?php echo $user['id']; ?>">
-                                        <li><a class="dropdown-item" href="#"><i class="fas fa-eye fa-fw me-2"></i>View Profile</a></li>
-                                        <li><a class="dropdown-item" href="#"><i class="fas fa-edit fa-fw me-2"></i>Edit User</a></li>
-                                        <li><a class="dropdown-item" href="#"><i class="fas fa-key fa-fw me-2"></i>Reset Password</a></li>
-                                        <li><hr class="dropdown-divider"></li>
-                                        <?php if($user['status'] == 'Active'): ?>
-                                        <li><a class="dropdown-item text-warning" href="#"><i class="fas fa-user-slash fa-fw me-2"></i>Suspend User</a></li>
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0">
+                        <thead class="table-light"><tr><th></th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Joined Date</th><th>Actions</th></tr></thead>
+                        <tbody>
+                            <?php foreach ($users_data as $user): ?>
+                                <?php
+                                $name = $user['first_name'] . ' ' . $user['last_name'];
+                                $avatar = !empty($user['avatar_url'])
+                                    ? (filter_var($user['avatar_url'], FILTER_VALIDATE_URL) ? $user['avatar_url'] : BASE_URL . ltrim($user['avatar_url'], '/'))
+                                    : BASE_URL . 'assets/images/user_avatar_placeholder.png';
+                                $is_current_user = (int) $user['user_id'] === (int) $_SESSION['user_id'];
+                                ?>
+                                <tr>
+                                    <td><img src="<?php echo htmlspecialchars($avatar, ENT_QUOTES, 'UTF-8'); ?>" alt="" class="rounded-circle" style="width: 32px; height: 32px; object-fit: cover;" onerror="this.src='<?php echo BASE_URL; ?>assets/images/user_avatar_placeholder.png'"></td>
+                                    <td><strong><?php echo htmlspecialchars($name, ENT_QUOTES, 'UTF-8'); ?></strong></td>
+                                    <td><?php echo htmlspecialchars($user['email'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars(ucfirst($user['role']), ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><span class="badge <?php echo $user['status'] === 'active' ? 'bg-success' : ($user['status'] === 'pending_approval' ? 'bg-warning text-dark' : ($user['status'] === 'suspended' ? 'bg-danger' : 'bg-secondary')); ?>"><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $user['status'])), ENT_QUOTES, 'UTF-8'); ?></span></td>
+                                    <td><?php echo htmlspecialchars(date('M d, Y', strtotime($user['created_at'])), ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td>
+                                        <?php if ($is_current_user): ?>
+                                            <span class="text-muted small">Current account</span>
+                                        <?php elseif ($user['status'] === 'deleted'): ?>
+                                            <span class="text-muted small">Deactivated</span>
                                         <?php else: ?>
-                                        <li><a class="dropdown-item text-success" href="#"><i class="fas fa-user-check fa-fw me-2"></i>Activate User</a></li>
+                                            <form method="post" class="d-flex gap-1">
+                                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(admin_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+                                                <input type="hidden" name="user_id" value="<?php echo (int) $user['user_id']; ?>">
+                                                <?php if ($user['role'] === 'instructor' && $user['status'] === 'pending_approval'): ?>
+                                                    <button class="btn btn-sm btn-outline-success" name="action" value="approve" type="submit">Approve</button>
+                                                <?php endif; ?>
+                                                <?php if ($user['status'] === 'active'): ?>
+                                                    <button class="btn btn-sm btn-outline-warning" name="action" value="suspend" type="submit">Suspend</button>
+                                                <?php elseif ($user['status'] === 'suspended'): ?>
+                                                    <button class="btn btn-sm btn-outline-success" name="action" value="activate" type="submit">Activate</button>
+                                                <?php endif; ?>
+                                                <button class="btn btn-sm btn-outline-danger" name="action" value="delete" type="submit" onclick="return confirm('Deactivate this user account?')">Deactivate</button>
+                                            </form>
                                         <?php endif; ?>
-                                        <li><a class="dropdown-item text-danger" href="#"><i class="fas fa-trash-alt fa-fw me-2"></i>Delete User</a></li>
-                                    </ul>
-                                </div>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            </div>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
             <?php endif; ?>
-        </div>
-         <div class="card-footer bg-white d-flex justify-content-center">
-             <nav aria-label="User list navigation">
-                <ul class="pagination pagination-sm mb-0">
-                    <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
-                    <li class="page-item active"><a class="page-link" href="#">1</a></li>
-                    <li class="page-item"><a class="page-link" href="#">Next</a></li>
-                </ul>
-            </nav>
         </div>
     </div>
 </div>
-<?php include '../includes/dashboard_footer.php'; ?>
+<?php include BASE_URL . 'includes/dashboard_footer.php'; ?>
