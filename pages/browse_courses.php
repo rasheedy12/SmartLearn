@@ -1,89 +1,187 @@
 <?php
+require_once __DIR__ . '/../includes/student_helpers.php';
+
 define('BASE_URL', '../');
-$page_title = "Browse Courses";
+$page_title = 'Browse Courses';
+$search = trim((string) ($_GET['q'] ?? ''));
+$category_id = filter_var($_GET['category'] ?? null, FILTER_VALIDATE_INT) ?: 0;
+$page = max(1, filter_var($_GET['page'] ?? null, FILTER_VALIDATE_INT) ?: 1);
+$per_page = 12;
+$offset = ($page - 1) * $per_page;
+$error_message = '';
+$courses = [];
+$categories = [];
+$total_courses = 0;
 
-// Conceptual: Determine if user is logged in to show appropriate header/footer
-$is_logged_in_browse = true; // Mock this
-// if ($is_logged_in_browse) {
-    $_SESSION['user_role'] = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : 'student';
-    include '../includes/dashboard_header.php';
-// } else {
-//    include '../includes/header.php';
-// }
+try {
+    $categories_result = $mysqli->query('SELECT category_id, name FROM categories ORDER BY name');
+    $categories = $categories_result->fetch_all(MYSQLI_ASSOC);
 
-$all_courses_data = [
-    ["id" => 1, "abbr" => "JS", "title" => "JavaScript Fundamentals", "instructor" => "Dr. Sarah Chen", "category" => "Web Development", "price" => "$49.99", "rating" => 4.8, "img" => BASE_URL . "assets/images/js.png", "bg_color"=>"bg-primary"],
-    ["id" => 2, "abbr" => "UX", "title" => "UX Design Principles", "instructor" => "Mike Davis", "category" => "Design", "price" => "$39.99", "rating" => 4.7, "img" => BASE_URL . "assets/images/ux.jpg", "bg_color"=>"bg-success"],
-    ["id" => 3, "abbr" => "PY", "title" => "Python for Data Science", "instructor" => "Dr. Emily White", "category" => "Data Science", "price" => "$59.99", "rating" => 4.9, "img" => BASE_URL . "assets/images/py.jpeg", "bg_color"=>"bg-info"],
-    ["id" => 4, "abbr" => "MK", "title" => "Digital Marketing Essentials", "instructor" => "Johnathan Lee", "category" => "Marketing", "price" => "$29.99", "rating" => 4.6, "img" => BASE_URL . "assets/images/dme.jpeg", "bg_color"=>"bg-warning text-dark"],
-    ["id" => 5, "abbr" => "AI", "title" => "Introduction to Artificial Intelligence", "instructor" => "Dr. Alan Turing Jr.", "category" => "Computer Science", "price" => "$79.99", "rating" => 4.9, "img" => BASE_URL . "assets/images/ai.jpg", "bg_color"=>"bg-danger"],
-    ["id" => 6, "abbr" => "GD", "title" => "Graphic Design Masterclass", "instructor" => "Laura Ipsum", "category" => "Design", "price" => "$69.99", "rating" => 4.7, "img" => BASE_URL . "assets/images/gd.jpeg", "bg_color"=>"bg-secondary"],
-];
-$categories = array_unique(array_column($all_courses_data, 'category'));
+    $where = "c.status = 'published'";
+    $types = '';
+    $params = [];
+    if ($search !== '') {
+        $where .= ' AND (c.title LIKE ? OR c.subtitle LIKE ? OR c.description LIKE ? OR CONCAT(u.first_name, " ", u.last_name) LIKE ?)';
+        $term = '%' . $search . '%';
+        $types .= 'ssss';
+        array_push($params, $term, $term, $term, $term);
+    }
+    if ($category_id > 0) {
+        $where .= ' AND c.category_id = ?';
+        $types .= 'i';
+        $params[] = $category_id;
+    }
+
+    $count_sql = "SELECT COUNT(*) AS total
+        FROM courses c
+        JOIN users u ON u.user_id = c.instructor_id
+        WHERE $where";
+    $count_stmt = $mysqli->prepare($count_sql);
+    if ($types !== '') {
+        $count_stmt->bind_param($types, ...$params);
+    }
+    $count_stmt->execute();
+    $total_courses = (int) $count_stmt->get_result()->fetch_assoc()['total'];
+
+    $course_sql = "SELECT c.course_id, c.title, c.subtitle, c.thumbnail_url, c.price,
+            c.discounted_price, c.is_free, c.average_rating, c.ratings_count,
+            c.enrolled_students_count, cat.name AS category_name,
+            CONCAT(u.first_name, ' ', u.last_name) AS instructor_name
+        FROM courses c
+        JOIN users u ON u.user_id = c.instructor_id
+        LEFT JOIN categories cat ON cat.category_id = c.category_id
+        WHERE $where
+        ORDER BY c.published_at DESC, c.course_id DESC
+        LIMIT ? OFFSET ?";
+    $course_stmt = $mysqli->prepare($course_sql);
+    $page_types = $types . 'ii';
+    $page_params = array_merge($params, [$per_page, $offset]);
+    $course_stmt->bind_param($page_types, ...$page_params);
+    $course_stmt->execute();
+    $courses = $course_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+} catch (Throwable $exception) {
+    error_log('Browse courses query failed: ' . $exception->getMessage());
+    $error_message = 'Courses could not be loaded right now. Please try again later.';
+}
+
+$page_count = (int) ceil($total_courses / $per_page);
+$page_title = 'Browse Courses';
+include __DIR__ . '/../includes/dashboard_header.php';
+
+function browse_courses_url($page_number)
+{
+    $query = $_GET;
+    $query['page'] = $page_number;
+    return 'browse_courses.php?' . http_build_query($query);
+}
 ?>
-<div class="container-fluid"> 
-    <h1 class="mb-4">Browse All Courses</h1>
-    <p class="lead mb-4">Discover new skills and knowledge. Find the perfect course for you!</p>
+<div class="container-fluid">
+    <h1 class="mb-3">Browse Courses</h1>
+    <p class="lead mb-4">Discover courses published by SmartLearn instructors.</p>
 
-    <div class="row mb-4">
+    <form class="row g-2 mb-4" method="get" action="browse_courses.php">
         <div class="col-md-8">
-            <form class="d-flex">
-                <input class="form-control me-2" type="search" placeholder="Search for courses (e.g., Python, UX Design)" aria-label="Search">
-                <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i></button>
-            </form>
+            <label class="visually-hidden" for="course-search">Search courses</label>
+            <input id="course-search" class="form-control" type="search" name="q"
+                   value="<?php echo htmlspecialchars($search, ENT_QUOTES, 'UTF-8'); ?>"
+                   placeholder="Search courses, topics, or instructors">
         </div>
-        <div class="col-md-4 mt-2 mt-md-0">
-            <select class="form-select" aria-label="Filter by category">
-                <option selected>All Categories</option>
-                <?php foreach($categories as $category): ?>
-                <option value="<?php echo htmlspecialchars(strtolower(str_replace(' ', '-', $category))); ?>"><?php echo htmlspecialchars($category); ?></option>
+        <div class="col-md-3">
+            <label class="visually-hidden" for="course-category">Filter by category</label>
+            <select id="course-category" class="form-select" name="category">
+                <option value="">All categories</option>
+                <?php foreach ($categories as $category): ?>
+                    <option value="<?php echo (int) $category['category_id']; ?>"
+                        <?php echo $category_id === (int) $category['category_id'] ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars($category['name'], ENT_QUOTES, 'UTF-8'); ?>
+                    </option>
                 <?php endforeach; ?>
             </select>
         </div>
-    </div>
-    
-    <?php if(empty($all_courses_data)): ?>
-         <div class="alert alert-warning text-center">
-            <h4 class="alert-heading">No Courses Available</h4>
-            <p>We are working on adding new courses. Please check back soon!</p>
+        <div class="col-md-1 d-grid">
+            <button class="btn btn-primary" type="submit" aria-label="Search courses">
+                <i class="fas fa-search"></i>
+            </button>
+        </div>
+    </form>
+
+    <?php if ($error_message !== ''): ?>
+        <div class="alert alert-danger" role="alert"><?php echo htmlspecialchars($error_message); ?></div>
+    <?php elseif ($courses === []): ?>
+        <div class="alert alert-info text-center">
+            <h2 class="h5">No published courses found</h2>
+            <p class="mb-0">
+                <?php echo $search !== '' || $category_id > 0
+                    ? 'Try changing your search or category filter.'
+                    : 'There are no courses available to browse yet. Please check back later.'; ?>
+            </p>
         </div>
     <?php else: ?>
+        <p class="text-muted"><?php echo number_format($total_courses); ?> course<?php echo $total_courses === 1 ? '' : 's'; ?> found</p>
         <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
-            <?php foreach($all_courses_data as $course): ?>
-            <div class="col">
-                <div class="card h-100 shadow-sm course-listing-card">
-                    <img src="<?php echo htmlspecialchars($course['img']); ?>" class="card-img-top" alt="<?php echo htmlspecialchars($course['title']); ?>" style="height: 180px; object-fit: cover;" onerror="this.src='https://placehold.co/600x400/EAEAEA/<?php echo substr(htmlspecialchars($course['bg_color']),3); ?>?text=<?php echo htmlspecialchars($course['abbr']); ?>&font=montserrat'">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title fs-6"><?php echo htmlspecialchars($course['title']); ?></h5>
-                        <p class="card-text small text-muted mb-1">By <?php echo htmlspecialchars($course['instructor']); ?></p>
-                        <p class="card-text small text-muted mb-2">Category: <?php echo htmlspecialchars($course['category']); ?></p>
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <span class="fw-bold text-primary"><?php echo htmlspecialchars($course['price']); ?></span>
-                            <span class="small"><i class="fas fa-star text-warning"></i> <?php echo htmlspecialchars($course['rating']); ?></span>
+            <?php foreach ($courses as $course): ?>
+                <?php
+                $thumbnail = trim((string) $course['thumbnail_url']);
+                if ($thumbnail !== '' && !preg_match('~^(https?://|/)~i', $thumbnail)) {
+                    $thumbnail = BASE_URL . ltrim($thumbnail, '/');
+                }
+                $course_price = (int) $course['is_free'] === 1
+                    ? 0
+                    : (float) ($course['discounted_price'] ?? $course['price']);
+                ?>
+                <div class="col">
+                    <article class="card h-100 shadow-sm">
+                        <?php if ($thumbnail !== ''): ?>
+                            <img src="<?php echo htmlspecialchars($thumbnail, ENT_QUOTES, 'UTF-8'); ?>"
+                                 class="card-img-top" alt="<?php echo htmlspecialchars($course['title'], ENT_QUOTES, 'UTF-8'); ?>"
+                                 style="height: 180px; object-fit: cover;">
+                        <?php else: ?>
+                            <div class="bg-light d-flex align-items-center justify-content-center text-muted"
+                                 style="height: 180px;">Course image unavailable</div>
+                        <?php endif; ?>
+                        <div class="card-body d-flex flex-column">
+                            <h2 class="card-title fs-6"><?php echo htmlspecialchars($course['title'], ENT_QUOTES, 'UTF-8'); ?></h2>
+                            <p class="small text-muted mb-1">By <?php echo htmlspecialchars($course['instructor_name'], ENT_QUOTES, 'UTF-8'); ?></p>
+                            <p class="small text-muted mb-2"><?php echo htmlspecialchars($course['category_name'] ?? 'Uncategorized', ENT_QUOTES, 'UTF-8'); ?></p>
+                            <?php if (!empty($course['subtitle'])): ?>
+                                <p class="small"><?php echo htmlspecialchars($course['subtitle'], ENT_QUOTES, 'UTF-8'); ?></p>
+                            <?php endif; ?>
+                            <div class="d-flex justify-content-between align-items-center mt-auto mb-3">
+                                <strong class="text-primary"><?php echo $course_price <= 0 ? 'Free' : '$' . number_format($course_price, 2); ?></strong>
+                                <span class="small" title="<?php echo (int) $course['ratings_count']; ?> ratings">
+                                    <i class="fas fa-star text-warning"></i>
+                                    <?php echo number_format((float) $course['average_rating'], 1); ?>
+                                    (<?php echo (int) $course['ratings_count']; ?>)
+                                </span>
+                            </div>
+                            <a href="course_detail.php?id=<?php echo (int) $course['course_id']; ?>"
+                               class="btn btn-outline-primary w-100">View details</a>
                         </div>
-                        <div class="mt-auto">
-                            <a href="course_detail.php?id=<?php echo $course['id']; ?>" class="btn btn-sm btn-outline-primary w-100">View Details</a>
-                        </div>
-                    </div>
+                    </article>
                 </div>
-            </div>
             <?php endforeach; ?>
         </div>
-         <nav aria-label="Page navigation example" class="mt-4 d-flex justify-content-center">
-            <ul class="pagination">
-                <li class="page-item disabled"><a class="page-link" href="#">Previous</a></li>
-                <li class="page-item active"><a class="page-link" href="#">1</a></li>
-                <li class="page-item"><a class="page-link" href="#">2</a></li>
-                <li class="page-item"><a class="page-link" href="#">3</a></li>
-                <li class="page-item"><a class="page-link" href="#">Next</a></li>
-            </ul>
-        </nav>
+
+        <?php if ($page_count > 1): ?>
+            <nav aria-label="Course pages" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item <?php echo $page <= 1 ? 'disabled' : ''; ?>">
+                        <a class="page-link" href="<?php echo htmlspecialchars(browse_courses_url(max(1, $page - 1)), ENT_QUOTES, 'UTF-8'); ?>">Previous</a>
+                    </li>
+                    <?php for ($page_number = 1; $page_number <= $page_count; $page_number++): ?>
+                        <li class="page-item <?php echo $page_number === $page ? 'active' : ''; ?>">
+                            <a class="page-link" href="<?php echo htmlspecialchars(browse_courses_url($page_number), ENT_QUOTES, 'UTF-8'); ?>"
+                               <?php echo $page_number === $page ? 'aria-current="page"' : ''; ?>>
+                                <?php echo $page_number; ?>
+                            </a>
+                        </li>
+                    <?php endfor; ?>
+                    <li class="page-item <?php echo $page >= $page_count ? 'disabled' : ''; ?>">
+                        <a class="page-link" href="<?php echo htmlspecialchars(browse_courses_url(min($page_count, $page + 1)), ENT_QUOTES, 'UTF-8'); ?>">Next</a>
+                    </li>
+                </ul>
+            </nav>
+        <?php endif; ?>
     <?php endif; ?>
 </div>
-<?php
-// if ($is_logged_in_browse) {
-    include '../includes/dashboard_footer.php';
-// } else {
-//    include '../includes/footer.php';
-// }
-?>
+<?php include __DIR__ . '/../includes/dashboard_footer.php'; ?>

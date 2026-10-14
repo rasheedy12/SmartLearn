@@ -11,3 +11,18 @@ if (!isset($_SESSION['loggedin'], $_SESSION['user_role'], $_SESSION['user_id'])
 }
 
 require_once __DIR__ . '/db_config.php';
+
+if (!isset($_SESSION['student_csrf_token'])) {
+    $_SESSION['student_csrf_token'] = bin2hex(random_bytes(32));
+}
+
+function student_csrf_token()
+{
+    return $_SESSION['student_csrf_token'];
+}
+
+function student_verify_csrf()
+{
+    return isset($_POST['csrf_token'], $_SESSION['student_csrf_token'])
+        && hash_equals($_SESSION['student_csrf_token'], $_POST['csrf_token']);
+}

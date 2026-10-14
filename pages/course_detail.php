@@ -1,209 +1,302 @@
 <?php
+require_once __DIR__ . '/../includes/student_helpers.php';
+
 define('BASE_URL', '../');
-// In a real app, course ID would come from GET param: $course_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-// Then fetch course data from DB. For now, mock data.
-$mock_course_id = 1; // Example
-$course_data = [
-    1 => [
-        'title' => 'JavaScript Fundamentals',
-        'tagline' => 'Master the building blocks of modern web development with hands-on projects and real-world examples.',
-        'instructor_name' => 'Dr. Sarah Chen',
-        'instructor_title' => 'Senior Web Developer & Educator',
-        'instructor_avatar' => BASE_URL . 'assets/images/avatars/instructor.png', // Placeholder
-        'lessons_count' => 48,
-        'skill_level' => 'Beginner',
-        'category' => 'Web Development',
-        'rating' => 4.8,
-        'reviews_count' => 1250,
-        'enrolled_count' => 5300,
-        'video_preview_url' => 'https://www.w3schools.com/html/mov_bbb.mp4', // Placeholder video
-        'modules' => [
-            ['title' => 'Module 1: Getting Started', 'lessons' => ['Introduction to JavaScript (Completed)', 'Setting Up Your Environment (Current)', 'Your First JavaScript Program']],
-            ['title' => 'Module 2: Variables and Data Types', 'lessons' => ['Understanding Variables', 'Primitive Data Types', 'Type Conversion']],
-            ['title' => 'Module 3: Operators and Expressions', 'lessons' => ['Arithmetic Operators', 'Comparison Operators', 'Logical Operators']],
-        ],
-        'about' => 'This comprehensive course will take you from complete beginner to a proficient JavaScript developer. You\'ll learn the fundamentals of programming, modern JavaScript syntax, and how to build interactive web applications. Through hands-on projects, you\'ll tackle real-world scenarios, equipping you with the skills needed to advance your career in web development.',
-        'what_you_learn' => [
-            'Master JavaScript fundamental concepts and syntax.',
-            'Build interactive web applications and websites.',
-            'Understand modern ES6+ JavaScript features.',
-            'Work with the DOM to manipulate web pages dynamically.',
-            'Learn asynchronous JavaScript with Promises and Async/Await.'
-        ],
-        'user_progress' => 65 // Example user progress if logged in
-    ],
-    // Add more mock courses if needed
-];
+$course_id = filter_var($_GET['id'] ?? null, FILTER_VALIDATE_INT);
+$course_id = $course_id && $course_id > 0 ? $course_id : 0;
+$user_id = (int) $_SESSION['user_id'];
+$error_message = '';
+$success_message = '';
+$course = null;
+$modules = [];
+$enrollment = null;
+$is_enrolled = false;
+$is_wishlisted = false;
 
-if (!isset($course_data[$mock_course_id])) {
-    // Handle course not found, redirect or show error
-    $page_title = "Course Not Found";
-    include '../includes/header.php'; // Public header for error
-    echo '<div class="container py-5 text-center"><h1>Course Not Found</h1><p>The course you are looking for does not exist or has been moved.</p><a href="'.BASE_URL.'browse_courses.php" class="btn btn-primary">Browse Courses</a></div>';
-    include '../includes/footer.php';
-    exit;
+if (!isset($_SESSION['student_wishlist'])) {
+    $_SESSION['student_wishlist'] = [];
 }
-$current_course = $course_data[$mock_course_id];
-$page_title = htmlspecialchars($current_course['title']);
+$wishlist_key = $user_id . ':' . $course_id;
+$is_wishlisted = isset($_SESSION['student_wishlist'][$wishlist_key]);
 
-// Determine if user is logged in (conceptual)
-$is_logged_in = true; // Assume user is logged in for full view
-// if ($is_logged_in) {
-    $_SESSION['user_role'] = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : 'student'; // Mock role for sidebar
-    include '../includes/dashboard_header.php';
-// } else {
-//    include '../includes/header.php'; // Public header for non-logged-in users
-// }
+try {
+    if ($course_id > 0) {
+        $course_stmt = $mysqli->prepare(
+            "SELECT c.course_id, c.category_id, c.title, c.subtitle, c.description, c.skill_level, c.language,
+                    c.thumbnail_url, c.video_preview_url, c.price, c.discounted_price, c.is_free,
+                    c.average_rating, c.ratings_count, c.enrolled_students_count,
+                    cat.name AS category_name, CONCAT(u.first_name, ' ', u.last_name) AS instructor_name
+             FROM courses c
+             JOIN users u ON u.user_id = c.instructor_id
+             LEFT JOIN categories cat ON cat.category_id = c.category_id
+             WHERE c.course_id = ? AND c.status = 'published'
+             LIMIT 1"
+        );
+        $course_stmt->bind_param('i', $course_id);
+        $course_stmt->execute();
+        $course = $course_stmt->get_result()->fetch_assoc();
+    }
+
+    if ($course) {
+        $enrollment_stmt = $mysqli->prepare(
+            'SELECT enrollment_id, progress_percentage FROM enrollments WHERE user_id = ? AND course_id = ? LIMIT 1'
+        );
+        $enrollment_stmt->bind_param('ii', $user_id, $course_id);
+        $enrollment_stmt->execute();
+        $enrollment = $enrollment_stmt->get_result()->fetch_assoc();
+        $is_enrolled = $enrollment !== null;
+
+        $modules_stmt = $mysqli->prepare(
+            'SELECT m.module_id, m.title AS module_title, m.order_index AS module_order,
+                    l.lesson_id, l.title AS lesson_title, l.duration_minutes, l.is_previewable, l.order_index AS lesson_order
+             FROM modules m
+             LEFT JOIN lessons l ON l.module_id = m.module_id
+             WHERE m.course_id = ?
+             ORDER BY m.order_index, l.order_index'
+        );
+        $modules_stmt->bind_param('i', $course_id);
+        $modules_stmt->execute();
+        $module_rows = $modules_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+        foreach ($module_rows as $row) {
+            $module_id = (int) $row['module_id'];
+            if (!isset($modules[$module_id])) {
+                $modules[$module_id] = ['title' => $row['module_title'], 'lessons' => []];
+            }
+            if ($row['lesson_id'] !== null) {
+                $modules[$module_id]['lessons'][] = $row;
+            }
+        }
+    }
+} catch (Throwable $exception) {
+    error_log('Course detail query failed: ' . $exception->getMessage());
+    $error_message = 'Course information could not be loaded right now.';
+}
+
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && $course) {
+    if (!student_verify_csrf()) {
+        http_response_code(400);
+        $error_message = 'Your request could not be verified. Refresh the page and try again.';
+    } elseif (($_POST['action'] ?? '') === 'toggle_wishlist') {
+        if ($is_wishlisted) {
+            unset($_SESSION['student_wishlist'][$wishlist_key]);
+            $success_message = 'Removed from your wishlist.';
+            $is_wishlisted = false;
+        } else {
+            $_SESSION['student_wishlist'][$wishlist_key] = true;
+            $success_message = 'Saved to your wishlist for this session.';
+            $is_wishlisted = true;
+        }
+    } elseif (($_POST['action'] ?? '') === 'enroll') {
+        if ($is_enrolled) {
+            $success_message = 'You are already enrolled in this course.';
+        } elseif ((int) $course['is_free'] !== 1) {
+            $error_message = 'Enrollment for paid courses is unavailable because checkout has not been configured.';
+        } else {
+            try {
+                $enroll_stmt = $mysqli->prepare(
+                    'INSERT INTO enrollments (user_id, course_id, enrolled_at, progress_percentage) VALUES (?, ?, NOW(), 0)'
+                );
+                $enroll_stmt->bind_param('ii', $user_id, $course_id);
+                $enroll_stmt->execute();
+                header('Location: course_detail.php?id=' . $course_id . '&enrolled=1');
+                exit;
+            } catch (Throwable $exception) {
+                error_log('Free course enrollment failed: ' . $exception->getMessage());
+                $error_message = 'Enrollment could not be completed. Please try again.';
+            }
+        }
+    }
+}
+
+if ($course && isset($_GET['enrolled']) && $_GET['enrolled'] === '1') {
+    $success_message = 'You are enrolled. The course is now available in My Courses.';
+}
+
+$page_title = $course ? $course['title'] : 'Course Not Found';
+include __DIR__ . '/../includes/dashboard_header.php';
+
+if (!$course):
 ?>
-
-<div class="container-fluid course-detail-page" style="background-color: #6f42c1; color: white; padding-top:2rem; padding-bottom:2rem;">
-    <div class="container">
-        <div class="row">
-            <div class="col-lg-8">
-                <nav aria-label="breadcrumb">
-                    <ol class="breadcrumb" style="--bs-breadcrumb-divider-color: rgba(255,255,255,0.7); --bs-breadcrumb-item-active-color: white;">
-                        <li class="breadcrumb-item"><a href="<?php echo BASE_URL; ?>browse_courses.php" style="color: rgba(255,255,255,0.7);">Courses</a></li>
-                        <li class="breadcrumb-item"><a href="#" style="color: rgba(255,255,255,0.7);"><?php echo htmlspecialchars($current_course['category']); ?></a></li>
-                        <li class="breadcrumb-item active" aria-current="page"><?php echo htmlspecialchars($current_course['title']); ?></li>
-                    </ol>
-                </nav>
-                <h1 class="display-5 fw-bold"><?php echo htmlspecialchars($current_course['title']); ?></h1>
-                <p class="lead mb-4"><?php echo htmlspecialchars($current_course['tagline']); ?></p>
-                <div class="d-flex align-items-center mb-3">
-                    <img src="<?php echo htmlspecialchars($current_course['instructor_avatar']); ?>" alt="<?php echo htmlspecialchars($current_course['instructor_name']); ?>" class="rounded-circle me-2" style="width:40px; height:40px; object-fit:cover;">
-                    <div>
-                        <small>Created by</small>
-                        <div class="fw-semibold"><?php echo htmlspecialchars($current_course['instructor_name']); ?></div>
-                        <small class="opacity-75"><?php echo htmlspecialchars($current_course['instructor_title']); ?></small>
-                    </div>
-                </div>
-                <p class="mb-1"><i class="fas fa-layer-group me-2"></i><?php echo $current_course['lessons_count']; ?> Lessons <span class="mx-2">|</span> <i class="fas fa-signal me-2"></i><?php echo htmlspecialchars($current_course['skill_level']); ?> <span class="mx-2">|</span> <i class="fas fa-certificate me-2"></i>Certificate</p>
-                <p><i class="fas fa-star text-warning me-1"></i> <?php echo $current_course['rating']; ?> (<?php echo $current_course['reviews_count']; ?> ratings) <span class="mx-2">|</span> <?php echo number_format($current_course['enrolled_count']); ?> students</p>
-            </div>
-            <div class="col-lg-4 mt-4 mt-lg-0">
-                <div class="card shadow">
-                    <div class="card-img-top embed-responsive embed-responsive-16by9 bg-dark d-flex align-items-center justify-content-center" style="min-height: 200px;">
-                        <?php if(!empty($current_course['video_preview_url'])): ?>
-                        <video controls class="embed-responsive-item w-100" poster="<?php echo BASE_URL; ?>assets/images/course_placeholders/js_fundamentals.jpg">
-                            <source src="<?php echo htmlspecialchars($current_course['video_preview_url']); ?>" type="video/mp4">
-                            Your browser does not support the video tag.
-                        </video>
-                        <?php else: ?>
-                        <img src="<?php echo BASE_URL; ?>assets/images/course_placeholders/js_fundamentals.jpg" class="img-fluid" alt="Course Preview Image">
-                        <?php endif; ?>
-                    </div>
-                    <div class="card-body">
-                        <h3 class="card-title fs-4 mb-3"><sup>$</sup>49.99 <del class="fs-6 text-muted ms-1">$99.99</del></h3>
-                        <a href="<?php echo BASE_URL; ?>lesson_view.php?course_id=<?php echo $mock_course_id; ?>&lesson_id=1" class="btn btn-primary w-100 mb-2">Go to Course / Enroll Now</a>
-                        <button class="btn btn-outline-secondary w-100 mb-2">Add to Wishlist <i class="far fa-heart ms-1"></i></button>
-                        <small class="text-muted d-block text-center">30-Day Money-Back Guarantee</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
 <div class="container py-5">
-    <div class="row">
-        <div class="col-lg-8">
-            <div class="card shadow-sm mb-4">
-                <div class="card-body p-4">
-                    <h3 class="mb-3">What you'll learn</h3>
-                    <ul class="list-unstyled row">
-                        <?php foreach($current_course['what_you_learn'] as $item): ?>
-                        <li class="col-md-6 mb-2"><i class="fas fa-check text-success me-2"></i><?php echo htmlspecialchars($item); ?></li>
-                        <?php endforeach; ?>
-                    </ul>
-                </div>
-            </div>
+    <div class="alert alert-warning">
+        <h1 class="h4">Course not found</h1>
+        <p class="mb-3"><?php echo htmlspecialchars($error_message ?: 'This course is unavailable or is not published.', ENT_QUOTES, 'UTF-8'); ?></p>
+        <a href="browse_courses.php" class="btn btn-primary">Browse courses</a>
+    </div>
+</div>
+<?php
+include __DIR__ . '/../includes/dashboard_footer.php';
+exit;
+endif;
 
-            <h3 class="mb-3">Course Content</h3>
-            <div class="accordion" id="courseModulesAccordion">
-                <?php foreach($current_course['modules'] as $index => $module): ?>
-                <div class="accordion-item mb-2 shadow-sm">
-                    <h2 class="accordion-header" id="headingModule<?php echo $index; ?>">
-                        <button class="accordion-button <?php echo ($index > 0) ? 'collapsed' : ''; ?>" type="button" data-bs-toggle="collapse" data-bs-target="#collapseModule<?php echo $index; ?>" aria-expanded="<?php echo ($index == 0) ? 'true' : 'false'; ?>" aria-controls="collapseModule<?php echo $index; ?>">
-                            <strong><?php echo htmlspecialchars($module['title']); ?></strong> <span class="ms-auto text-muted small"><?php echo count($module['lessons']); ?> lessons</span>
-                        </button>
-                    </h2>
-                    <div id="collapseModule<?php echo $index; ?>" class="accordion-collapse collapse <?php echo ($index == 0) ? 'show' : ''; ?>" aria-labelledby="headingModule<?php echo $index; ?>" data-bs-parent="#courseModulesAccordion">
-                        <div class="accordion-body">
-                            <ul class="list-group list-group-flush">
-                                <?php foreach($module['lessons'] as $lesson_idx => $lesson_title): ?>
-                                <li class="list-group-item d-flex justify-content-between align-items-center">
-                                    <span><i class="far fa-play-circle me-2 text-primary"></i> <?php echo htmlspecialchars($lesson_title); ?></span>
-                                    <small class="text-muted">
-                                        <?php if(str_contains($lesson_title, '(Completed)')): echo '<i class="fas fa-check-circle text-success me-1"></i>Completed';
-                                              elseif(str_contains($lesson_title, '(Current)')): echo '<i class="fas fa-spinner fa-spin me-1 text-primary"></i>Current';
-                                              else: echo '10:30'; /* Mock duration */
-                                        endif; ?>
-                                    </small>
-                                </li>
-                                <?php endforeach; ?>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-                <?php endforeach; ?>
+$display_price = (int) $course['is_free'] === 1
+    ? 0
+    : (float) ($course['discounted_price'] ?? $course['price']);
+$thumbnail = trim((string) $course['thumbnail_url']);
+if ($thumbnail !== '' && !preg_match('~^(https?://|/)~i', $thumbnail)) {
+    $thumbnail = BASE_URL . ltrim($thumbnail, '/');
+}
+$lesson_count = 0;
+foreach ($modules as $module) {
+    $lesson_count += count($module['lessons']);
+}
+?>
+<div class="container-fluid bg-primary text-white py-5">
+    <div class="container">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a class="link-light" href="browse_courses.php">Browse courses</a></li>
+                <li class="breadcrumb-item"><a class="link-light"
+                    href="browse_courses.php?category=<?php echo (int) ($course['category_id'] ?? 0); ?>">
+                    <?php echo htmlspecialchars($course['category_name'] ?? 'Courses', ENT_QUOTES, 'UTF-8'); ?>
+                </a></li>
+                <li class="breadcrumb-item active text-white" aria-current="page">
+                    <?php echo htmlspecialchars($course['title'], ENT_QUOTES, 'UTF-8'); ?>
+                </li>
+            </ol>
+        </nav>
+        <div class="row align-items-center g-4">
+            <div class="col-lg-8">
+                <h1 class="display-5 fw-bold"><?php echo htmlspecialchars($course['title'], ENT_QUOTES, 'UTF-8'); ?></h1>
+                <?php if (!empty($course['subtitle'])): ?>
+                    <p class="lead"><?php echo htmlspecialchars($course['subtitle'], ENT_QUOTES, 'UTF-8'); ?></p>
+                <?php endif; ?>
+                <p>Created by <strong><?php echo htmlspecialchars($course['instructor_name'], ENT_QUOTES, 'UTF-8'); ?></strong></p>
+                <p class="mb-0">
+                    <i class="fas fa-layer-group me-2"></i><?php echo $lesson_count; ?> lessons
+                    <span class="mx-2">|</span>
+                    <i class="fas fa-signal me-2"></i><?php echo htmlspecialchars($course['skill_level'] ?: 'All levels', ENT_QUOTES, 'UTF-8'); ?>
+                    <?php if (!empty($course['language'])): ?>
+                        <span class="mx-2">|</span><?php echo htmlspecialchars($course['language'], ENT_QUOTES, 'UTF-8'); ?>
+                    <?php endif; ?>
+                </p>
+                <p class="mt-2 mb-0">
+                    <i class="fas fa-star text-warning me-1"></i><?php echo number_format((float) $course['average_rating'], 1); ?>
+                    (<?php echo (int) $course['ratings_count']; ?> ratings)
+                    <span class="mx-2">|</span><?php echo number_format((int) $course['enrolled_students_count']); ?> students
+                </p>
             </div>
-
-             <div class="card shadow-sm my-4">
-                <div class="card-body p-4">
-                    <h3 class="mb-3">About This Course</h3>
-                    <p><?php echo nl2br(htmlspecialchars($current_course['about'])); ?></p>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-lg-4">
-            <?php if($is_logged_in && isset($current_course['user_progress'])): ?>
-            <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <h5 class="card-title">Your Progress</h5>
-                    <div class="progress mb-2" style="height: 20px;">
-                        <div class="progress-bar bg-success" role="progressbar" style="width: <?php echo $current_course['user_progress']; ?>%;" aria-valuenow="<?php echo $current_course['user_progress']; ?>" aria-valuemin="0" aria-valuemax="100"><?php echo $current_course['user_progress']; ?>%</div>
+            <div class="col-lg-4">
+                <div class="card text-dark shadow">
+                    <?php if (!empty($course['video_preview_url'])): ?>
+                        <video controls class="w-100" style="max-height: 220px">
+                            <source src="<?php echo htmlspecialchars($course['video_preview_url'], ENT_QUOTES, 'UTF-8'); ?>">
+                        </video>
+                    <?php elseif ($thumbnail !== ''): ?>
+                        <img src="<?php echo htmlspecialchars($thumbnail, ENT_QUOTES, 'UTF-8'); ?>"
+                             class="card-img-top" alt="<?php echo htmlspecialchars($course['title'], ENT_QUOTES, 'UTF-8'); ?>"
+                             style="max-height: 220px; object-fit: cover;">
+                    <?php else: ?>
+                        <div class="bg-light text-muted text-center py-5">Course preview unavailable</div>
+                    <?php endif; ?>
+                    <div class="card-body">
+                        <h2 class="h3"><?php echo $display_price <= 0 ? 'Free' : '$' . number_format($display_price, 2); ?></h2>
+                        <?php if ($is_enrolled): ?>
+                            <a href="../admin/my_courses.php" class="btn btn-success w-100 mb-2">Go to My Courses</a>
+                        <?php elseif ((int) $course['is_free'] === 1): ?>
+                            <form method="post">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(student_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+                                <input type="hidden" name="action" value="enroll">
+                                <button class="btn btn-primary w-100 mb-2" type="submit">Enroll for free</button>
+                            </form>
+                        <?php else: ?>
+                            <button class="btn btn-secondary w-100 mb-2" type="button" disabled>Paid checkout unavailable</button>
+                        <?php endif; ?>
+                        <form method="post">
+                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(student_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+                            <input type="hidden" name="action" value="toggle_wishlist">
+                            <button class="btn btn-outline-secondary w-100" type="submit">
+                                <?php echo $is_wishlisted ? 'Remove from wishlist' : 'Add to wishlist'; ?>
+                                <i class="<?php echo $is_wishlisted ? 'fas' : 'far'; ?> fa-heart ms-1"></i>
+                            </button>
+                        </form>
+                        <small class="text-muted d-block text-center mt-2">Wishlist is saved for this session.</small>
                     </div>
-                    <a href="#" class="btn btn-sm btn-outline-primary">Continue Learning</a>
-                </div>
-            </div>
-            <?php endif; ?>
-
-            <div class="card shadow-sm mb-4">
-                <div class="card-body">
-                    <h5 class="card-title">Instructor</h5>
-                    <div class="d-flex align-items-center">
-                        <img src="<?php echo htmlspecialchars($current_course['instructor_avatar']); ?>" alt="<?php echo htmlspecialchars($current_course['instructor_name']); ?>" class="rounded-circle me-3" style="width:60px; height:60px; object-fit:cover;">
-                        <div>
-                            <h6 class="mb-0"><?php echo htmlspecialchars($current_course['instructor_name']); ?></h6>
-                            <small class="text-muted"><?php echo htmlspecialchars($current_course['instructor_title']); ?></small>
-                        </div>
-                    </div>
-                    <p class="small mt-2">Dr. Chen is a passionate web developer with over 10 years of experience building scalable applications and teaching coding bootcamps.</p>
-                    <a href="#" class="btn btn-sm btn-outline-secondary">View Profile</a>
-                </div>
-            </div>
-            
-            <div class="card shadow-sm">
-                <div class="card-body">
-                    <h5 class="card-title">Study Buddies for this Course</h5>
-                     <p class="small text-muted">Connect with others taking this course.</p>
-                    <?php for($i=1; $i<=2; $i++): ?>
-                    <div class="d-flex align-items-center mb-2">
-                        <img src="<?php echo BASE_URL; ?>assets/images/avatars/student_<?php echo $i; ?>.png" alt="Study Buddy" class="rounded-circle me-2" style="width:30px; height:30px; object-fit:cover;" onerror="this.src='<?php echo BASE_URL; ?>assets/images/user_avatar_placeholder.png'">
-                        <small>User <?php echo $i; ?> Name</small> <a href="#" class="ms-auto btn btn-sm btn-outline-info py-0">Connect</a>
-                    </div>
-                    <?php endfor; ?>
-                    <a href="<?php echo BASE_URL; ?>study_buddy.php?course_id=<?php echo $mock_course_id; ?>" class="btn btn-sm btn-light w-100 mt-2">Find More Buddies</a>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<?php
-// if ($is_logged_in) {
-    include '../includes/dashboard_footer.php';
-// } else {
-//    include '../includes/footer.php';
-// }
+<main class="container py-5">
+    <?php if ($error_message !== ''): ?>
+        <div class="alert alert-danger" role="alert"><?php echo htmlspecialchars($error_message, ENT_QUOTES, 'UTF-8'); ?></div>
+    <?php endif; ?>
+    <?php if ($success_message !== ''): ?>
+        <div class="alert alert-success" role="status"><?php echo htmlspecialchars($success_message, ENT_QUOTES, 'UTF-8'); ?></div>
+    <?php endif; ?>
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <section class="card shadow-sm mb-4">
+                <div class="card-body p-4">
+                    <h2 class="h4">About this course</h2>
+                    <?php if (!empty($course['description'])): ?>
+                        <p class="mb-0"><?php echo nl2br(htmlspecialchars($course['description'], ENT_QUOTES, 'UTF-8')); ?></p>
+                    <?php else: ?>
+                        <p class="text-muted mb-0">The instructor has not added a course description yet.</p>
+                    <?php endif; ?>
+                </div>
+            </section>
+
+            <section class="card shadow-sm mb-4">
+                <div class="card-body p-4">
+                    <h2 class="h4 mb-3">Course content</h2>
+                    <?php if ($modules === []): ?>
+                        <p class="text-muted mb-0">The instructor has not added course lessons yet.</p>
+                    <?php else: ?>
+                        <div class="accordion" id="courseModules">
+                            <?php $module_index = 0; foreach ($modules as $module): $module_index++; ?>
+                                <div class="accordion-item">
+                                    <h3 class="accordion-header" id="module-heading-<?php echo $module_index; ?>">
+                                        <button class="accordion-button <?php echo $module_index > 1 ? 'collapsed' : ''; ?>"
+                                                type="button" data-bs-toggle="collapse"
+                                                data-bs-target="#module-content-<?php echo $module_index; ?>"
+                                                aria-expanded="<?php echo $module_index === 1 ? 'true' : 'false'; ?>">
+                                            <?php echo htmlspecialchars($module['title'], ENT_QUOTES, 'UTF-8'); ?>
+                                            <span class="ms-auto me-3 small text-muted"><?php echo count($module['lessons']); ?> lessons</span>
+                                        </button>
+                                    </h3>
+                                    <div id="module-content-<?php echo $module_index; ?>"
+                                         class="accordion-collapse collapse <?php echo $module_index === 1 ? 'show' : ''; ?>"
+                                         data-bs-parent="#courseModules">
+                                        <ul class="list-group list-group-flush">
+                                            <?php foreach ($module['lessons'] as $lesson): ?>
+                                                <li class="list-group-item d-flex justify-content-between">
+                                                    <span><i class="far fa-play-circle text-primary me-2"></i>
+                                                        <?php echo htmlspecialchars($lesson['lesson_title'], ENT_QUOTES, 'UTF-8'); ?>
+                                                        <?php if ((int) $lesson['is_previewable'] === 1): ?>
+                                                            <span class="badge bg-info text-dark ms-1">Preview</span>
+                                                        <?php endif; ?>
+                                                    </span>
+                                                    <small class="text-muted"><?php echo (int) $lesson['duration_minutes']; ?> min</small>
+                                                </li>
+                                            <?php endforeach; ?>
+                                        </ul>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </section>
+        </div>
+        <aside class="col-lg-4">
+            <section class="card shadow-sm mb-4">
+                <div class="card-body">
+                    <h2 class="h5">Instructor</h2>
+                    <p class="mb-1"><?php echo htmlspecialchars($course['instructor_name'], ENT_QUOTES, 'UTF-8'); ?></p>
+                    <small class="text-muted">Course instructor</small>
+                </div>
+            </section>
+            <section class="card shadow-sm">
+                <div class="card-body">
+                    <h2 class="h5">Study buddies</h2>
+                    <p class="small text-muted">Connect with other learners from the Study Buddies page.</p>
+                    <a class="btn btn-outline-info w-100"
+                       href="../admin/study_buddy.php?course_id=<?php echo $course_id; ?>">Find study buddies</a>
+                </div>
+            </section>
+        </aside>
+    </div>
+</main>
+<?php include __DIR__ . '/../includes/dashboard_footer.php'; ?>
