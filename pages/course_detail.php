@@ -10,6 +10,7 @@ $user_id = (int) $_SESSION['user_id'];
 $error_message = '';
 $success_message = '';
 $payment_error = trim((string) ($_GET['payment_error'] ?? ''));
+$paystack_configuration_error = paystack_checkout_configuration_error();
 $course = null;
 $modules = [];
 $enrollment = null;
@@ -235,6 +236,11 @@ foreach ($modules as $module) {
                                 <button class="btn btn-primary w-100 mb-2" type="submit">Enroll for free</button>
                             </form>
                         <?php else: ?>
+                            <?php if ($paystack_configuration_error !== ''): ?>
+                                <div class="alert alert-warning small" role="alert">
+                                    <?php echo htmlspecialchars($paystack_configuration_error, ENT_QUOTES, 'UTF-8'); ?>
+                                </div>
+                            <?php else: ?>
                             <form method="post" action="initiate_course_payment.php">
                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(student_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
                                 <input type="hidden" name="course_id" value="<?php echo $course_id; ?>">
@@ -250,6 +256,7 @@ foreach ($modules as $module) {
                                 <button class="btn btn-primary w-100 mb-2" type="submit">Pay with Paystack</button>
                                 <small class="text-muted d-block text-center">The USD course price is converted using the current exchange rate. Currency availability depends on the merchant's Paystack account.</small>
                             </form>
+                            <?php endif; ?>
                         <?php endif; ?>
                         <form method="post">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(student_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">

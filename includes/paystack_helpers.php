@@ -6,6 +6,32 @@ function paystack_secret_key()
     return $key === false ? '' : trim($key);
 }
 
+function paystack_checkout_configuration_error()
+{
+    if (paystack_secret_key() === '') {
+        return 'Paystack is not configured on this PHP server. Set PAYSTACK_SECRET_KEY using a newly rotated test key.';
+    }
+
+    $callback_url = trim((string) getenv('PAYSTACK_CALLBACK_URL'));
+    $host = strtolower((string) parse_url($callback_url, PHP_URL_HOST));
+    if ($callback_url === '' || filter_var($callback_url, FILTER_VALIDATE_URL) === false
+        || strtolower((string) parse_url($callback_url, PHP_URL_SCHEME)) !== 'https'
+        || $host === '' || in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+        return 'Set PAYSTACK_CALLBACK_URL to the public HTTPS address of pages/paystack_callback.php. For local development, expose your server through an HTTPS tunnel.';
+    }
+
+    $ip = filter_var($host, FILTER_VALIDATE_IP);
+    if ($ip !== false && filter_var(
+        $ip,
+        FILTER_VALIDATE_IP,
+        FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+    ) === false) {
+        return 'PAYSTACK_CALLBACK_URL must use a publicly reachable HTTPS address.';
+    }
+
+    return '';
+}
+
 function paystack_supported_currencies()
 {
     return [

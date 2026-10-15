@@ -54,11 +54,11 @@ try {
         exit;
     }
 
-    $callback_url = trim((string) getenv('PAYSTACK_CALLBACK_URL'));
-    if ($callback_url === '' || filter_var($callback_url, FILTER_VALIDATE_URL) === false
-        || !in_array(strtolower((string) parse_url($callback_url, PHP_URL_SCHEME)), ['https'], true)) {
-        throw new RuntimeException('Paystack callback URL is not configured as a valid HTTPS URL.');
+    $configuration_error = paystack_checkout_configuration_error();
+    if ($configuration_error !== '') {
+        throw new RuntimeException($configuration_error);
     }
+    $callback_url = trim((string) getenv('PAYSTACK_CALLBACK_URL'));
 
     $exchange_rate = paystack_usd_exchange_rate($currency);
     $minor_units = paystack_currency_minor_units($currency);
@@ -139,5 +139,12 @@ try {
         }
     }
     error_log('Paystack course payment initialization failed: ' . $exception->getMessage());
+    $configuration_error = paystack_checkout_configuration_error();
+    if ($configuration_error !== '') {
+        payment_redirect($course_id ?: 0, $configuration_error);
+    }
+    if (strpos($exception->getMessage(), 'Exchange-rate service') === 0) {
+        payment_redirect($course_id ?: 0, 'Live exchange rates are temporarily unavailable. Please retry in a few minutes.');
+    }
     payment_redirect($course_id ?: 0, 'Payment could not be started. Please try again or contact support.');
 }
