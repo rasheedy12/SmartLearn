@@ -1,6 +1,7 @@
 <?php
 define('BASE_URL', '../');
 require_once BASE_URL . 'includes/student_helpers.php';
+require_once BASE_URL . 'includes/youtube_helpers.php';
 $page_title = 'My Courses';
 $student_id = (int) $_SESSION['user_id'];
 
@@ -29,6 +30,28 @@ $stmt->bind_param('i', $student_id);
 $stmt->execute();
 $my_courses_data = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $stmt->close();
+
+$watchlist_stmt = $mysqli->prepare(
+    'SELECT e.course_id, l.lesson_id, l.title AS lesson_title, l.video_url,
+            l.duration_minutes, m.title AS module_title
+     FROM enrollments e
+     INNER JOIN courses c ON c.course_id = e.course_id
+     INNER JOIN modules m ON m.course_id = c.course_id
+     INNER JOIN lessons l ON l.module_id = m.module_id
+     WHERE e.user_id = ? AND l.content_type = \'video\' AND l.video_url IS NOT NULL
+     ORDER BY e.enrolled_at DESC, m.order_index, l.order_index, l.lesson_id'
+);
+$watchlist_stmt->bind_param('i', $student_id);
+$watchlist_stmt->execute();
+$watchlist_rows = $watchlist_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$watchlist_stmt->close();
+
+$video_watchlist = [];
+foreach ($watchlist_rows as $item) {
+    if (youtube_video_id($item['video_url']) !== null) {
+        $video_watchlist[(int) $item['course_id']][] = $item;
+    }
+}
 
 include BASE_URL . 'includes/dashboard_header.php';
 ?>
@@ -73,6 +96,29 @@ include BASE_URL . 'includes/dashboard_header.php';
                                    href="../pages/course_detail.php?id=<?php echo (int) $course['course_id']; ?>">
                                     View course playlist
                                 </a>
+                            <?php endif; ?>
+                            <?php $course_videos = $video_watchlist[(int) $course['course_id']] ?? []; ?>
+                            <?php if ($course_videos): ?>
+                                <details class="mt-3">
+                                    <summary class="fw-semibold">
+                                        Video watchlist (<?php echo count($course_videos); ?>)
+                                    </summary>
+                                    <div class="list-group list-group-flush mt-2">
+                                        <?php foreach ($course_videos as $video): ?>
+                                            <a class="list-group-item list-group-item-action px-0"
+                                               href="../pages/lesson_view.php?course_id=<?php echo (int) $course['course_id']; ?>&amp;lesson_id=<?php echo (int) $video['lesson_id']; ?>">
+                                                <i class="fab fa-youtube text-danger me-2" aria-hidden="true"></i>
+                                                <?php echo htmlspecialchars($video['lesson_title'], ENT_QUOTES, 'UTF-8'); ?>
+                                                <small class="d-block text-muted ms-4">
+                                                    <?php echo htmlspecialchars($video['module_title'], ENT_QUOTES, 'UTF-8'); ?>
+                                                    <?php if (!empty($video['duration_minutes'])): ?>
+                                                        · <?php echo (int) $video['duration_minutes']; ?> min
+                                                    <?php endif; ?>
+                                                </small>
+                                            </a>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </details>
                             <?php endif; ?>
                         </div>
                     </div>

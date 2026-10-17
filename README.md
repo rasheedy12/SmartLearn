@@ -83,6 +83,16 @@ database/Smartlearn.sql
 includes/db_config.php
 ```
 
+5. If you want to enable Paystack checkout locally, add a `.env` file in the project root with:
+
+```env
+PAYSTACK_SECRET_KEY=your_test_secret_key
+PAYSTACK_CALLBACK_URL=https://your-public-domain.example.com/pages/paystack_callback.php
+APP_ENV=local
+```
+
+The application now also tolerates missing Paystack settings while running on localhost so the course pages continue to load in local development.
+
 ## Default Database Configuration
 The project currently uses:
 

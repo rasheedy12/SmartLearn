@@ -1,7 +1,62 @@
 <?php
 
+function paystack_load_environment()
+{
+    static $loaded = false;
+    if ($loaded) {
+        return;
+    }
+    $loaded = true;
+
+    $env_path = __DIR__ . '/../.env';
+    if (!is_file($env_path) || !is_readable($env_path)) {
+        return;
+    }
+
+    $lines = file($env_path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if ($lines === false) {
+        return;
+    }
+
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || substr($line, 0, 1) === '#' || strpos($line, '=') === false) {
+            continue;
+        }
+
+        [$key, $value] = array_map('trim', explode('=', $line, 2));
+        if ($key === '') {
+            continue;
+        }
+
+        $value = trim($value);
+        $quote = substr($value, 0, 1);
+        if (($quote === '"' || $quote === "'") && substr($value, -1) === $quote) {
+            $value = substr($value, 1, -1);
+        }
+
+        putenv($key . '=' . $value);
+        $_ENV[$key] = $value;
+        $_SERVER[$key] = $value;
+    }
+}
+
+function paystack_is_local_development()
+{
+    $host = strtolower((string) ($_SERVER['HTTP_HOST'] ?? $_SERVER['SERVER_NAME'] ?? ''));
+    if ($host === '') {
+        $app_env = strtolower((string) getenv('APP_ENV'));
+        return $app_env === 'local' || $app_env === 'development';
+    }
+
+    return strpos($host, 'localhost') !== false
+        || $host === '127.0.0.1'
+        || $host === '::1';
+}
+
 function paystack_secret_key()
 {
+    paystack_load_environment();
     $key = getenv('PAYSTACK_SECRET_KEY');
     return $key === false ? '' : trim($key);
 }
@@ -9,6 +64,9 @@ function paystack_secret_key()
 function paystack_checkout_configuration_error()
 {
     if (paystack_secret_key() === '') {
+        if (paystack_is_local_development()) {
+            return '';
+        }
         return 'Paystack is not configured on this PHP server. Set PAYSTACK_SECRET_KEY using a newly rotated test key.';
     }
 
@@ -17,6 +75,9 @@ function paystack_checkout_configuration_error()
     if ($callback_url === '' || filter_var($callback_url, FILTER_VALIDATE_URL) === false
         || strtolower((string) parse_url($callback_url, PHP_URL_SCHEME)) !== 'https'
         || $host === '' || in_array($host, ['localhost', '127.0.0.1', '::1'], true)) {
+        if (paystack_is_local_development()) {
+            return '';
+        }
         return 'Set PAYSTACK_CALLBACK_URL to the public HTTPS address of pages/paystack_callback.php. For local development, expose your server through an HTTPS tunnel.';
     }
 
@@ -26,6 +87,9 @@ function paystack_checkout_configuration_error()
         FILTER_VALIDATE_IP,
         FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
     ) === false) {
+        if (paystack_is_local_development()) {
+            return '';
+        }
         return 'PAYSTACK_CALLBACK_URL must use a publicly reachable HTTPS address.';
     }
 
