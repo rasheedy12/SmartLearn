@@ -164,6 +164,7 @@ The checked-in connection configuration currently targets local XAMPP MariaDB th
 - Course prices are stored in USD. At checkout, the selected supported currency is converted using the current USD exchange rate from ExchangeRate-API; the converted amount and rate are stored with the pending payment.
 - Enrollment is granted only after the callback handler verifies the reference, amount, currency, and successful status directly with Paystack. Currency availability still depends on the merchant's Paystack account.
 - Instructors add YouTube watch URLs as video lessons. Enrolled students get the course playlist; only lessons explicitly marked previewable are available before enrollment.
+- Students earn 10 XP for each lesson marked complete. XP is derived from completed lesson progress; achievement badges are displayed separately.
 
 ### Production boundary
 

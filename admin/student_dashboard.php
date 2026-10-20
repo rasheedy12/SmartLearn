@@ -111,10 +111,10 @@ $upcoming_tasks_stmt->close();
 
 $achievements_available = true;
 $achievements = [];
-$experience_points = 0;
+$experience_points = $completed_lessons * 10;
 try {
     $achievements_stmt = $mysqli->prepare(
-        'SELECT a.name, a.description, a.icon_class, a.xp_reward, ua.earned_at
+        'SELECT a.name, a.description, a.icon_class, ua.earned_at
          FROM user_achievements ua
          INNER JOIN achievements a ON a.achievement_id = ua.achievement_id
          WHERE ua.user_id = ?
@@ -124,9 +124,6 @@ try {
     $achievements_stmt->execute();
     $achievements = $achievements_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $achievements_stmt->close();
-    foreach ($achievements as $achievement) {
-        $experience_points += (int) $achievement['xp_reward'];
-    }
 } catch (mysqli_sql_exception $error) {
     $achievements_available = false;
     error_log('Student dashboard could not load achievements: ' . $error->getMessage());
@@ -137,7 +134,7 @@ include BASE_URL . 'includes/dashboard_header.php';
 <div class="container-fluid">
     <h1 class="h2 mb-4">Your Progress</h1>
     <?php if (!$achievements_available): ?>
-        <div class="alert alert-warning" role="alert">Achievement and XP data is temporarily unavailable. Check the server error log.</div>
+        <div class="alert alert-warning" role="alert">Achievement badge data is temporarily unavailable. Your lesson XP is still up to date.</div>
     <?php endif; ?>
 
     <div class="row">
@@ -145,8 +142,8 @@ include BASE_URL . 'includes/dashboard_header.php';
             <a href="./progress.php" class="text-decoration-none text-reset">
                 <div class="stat-card text-primary h-100">
                     <div class="d-flex justify-content-between align-items-center"><h2 class="h6">Experience Points</h2><i class="fas fa-star icon-lg text-primary"></i></div>
-                    <div class="stat-value"><?php echo $achievements_available ? number_format($experience_points) : 'Unavailable'; ?><?php if ($achievements_available): ?> <small class="fs-6 text-muted">XP</small><?php endif; ?></div>
-                    <small class="stat-subtext"><?php echo $achievements_available ? count($achievements) . ' recent achievements' : 'Achievement records are unavailable'; ?></small>
+                    <div class="stat-value"><?php echo number_format($experience_points); ?> <small class="fs-6 text-muted">XP</small></div>
+                    <small class="stat-subtext">10 XP per completed lesson</small>
                 </div>
             </a>
         </div>

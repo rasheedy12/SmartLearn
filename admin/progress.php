@@ -45,10 +45,10 @@ $completion_stmt->close();
 
 $achievements_available = true;
 $badges_earned = [];
-$xp_earned = 0;
+$xp_earned = $completed_lessons * 10;
 try {
     $achievements_stmt = $mysqli->prepare(
-        'SELECT a.name, a.description, a.icon_class, a.xp_reward, ua.earned_at
+        'SELECT a.name, a.description, a.icon_class, ua.earned_at
          FROM user_achievements ua
          INNER JOIN achievements a ON a.achievement_id = ua.achievement_id
          WHERE ua.user_id = ?
@@ -58,9 +58,6 @@ try {
     $achievements_stmt->execute();
     $badges_earned = $achievements_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
     $achievements_stmt->close();
-    foreach ($badges_earned as $badge) {
-        $xp_earned += (int) $badge['xp_reward'];
-    }
 } catch (mysqli_sql_exception $error) {
     $achievements_available = false;
     error_log('Student progress could not load achievements: ' . $error->getMessage());
@@ -111,7 +108,7 @@ include BASE_URL . 'includes/dashboard_header.php';
     <h1 class="h2 mb-4">My Progress</h1>
     <p class="lead mb-4">Your course completion, lesson activity, and earned achievements.</p>
     <?php if (!$achievements_available): ?>
-        <div class="alert alert-warning" role="alert">Achievement and XP data is temporarily unavailable. Check the server error log.</div>
+        <div class="alert alert-warning" role="alert">Achievement badge data is temporarily unavailable. Your lesson XP is still up to date.</div>
     <?php endif; ?>
 
     <div class="row">
@@ -135,8 +132,8 @@ include BASE_URL . 'includes/dashboard_header.php';
             <div class="stat-card text-center h-100">
                 <i class="fas fa-star fa-3x text-warning mb-3"></i>
                 <h2 class="h6">XP Earned</h2>
-                <div class="display-4 fw-bold"><?php echo $achievements_available ? number_format($xp_earned) : 'Unavailable'; ?></div>
-                <small class="text-muted"><?php echo $achievements_available ? 'From earned achievements' : 'Achievement data is unavailable'; ?></small>
+                <div class="display-4 fw-bold"><?php echo number_format($xp_earned); ?></div>
+                <small class="text-muted">10 XP per completed lesson</small>
             </div>
         </div>
     </div>
