@@ -4,9 +4,126 @@ body {
 }
 
 .hero-section { /* For landing page */
-    background: linear-gradient(to right, #6f42c1, #4a00e0);
+    background: linear-gradient(115deg, #4e258f 0%, #5a27be 54%, #3812b7 100%);
     color: white;
-    padding: 80px 0;
+    padding: clamp(3.5rem, 8vw, 6.5rem) 0;
+    overflow: hidden;
+}
+
+.hero-section h1 {
+    max-width: 14ch;
+    font-size: clamp(2.25rem, 4vw, 3rem);
+    letter-spacing: -0.035em;
+    line-height: 1.08;
+}
+
+.hero-eyebrow,
+.hero-slide-label {
+    color: rgba(255, 255, 255, 0.78);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+}
+
+.hero-section .lead {
+    color: rgba(255, 255, 255, 0.84);
+    line-height: 1.7;
+}
+
+.hero-carousel {
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    border-radius: 1rem;
+    background: #fff;
+    box-shadow: 0 1.5rem 4rem rgba(20, 9, 55, 0.32);
+}
+
+.hero-carousel .carousel-item > img {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    background: #eef1f8;
+}
+
+.hero-slide-caption {
+    padding: 1.1rem 1.5rem 1.35rem;
+    color: #212529;
+    background: #fff;
+}
+
+.hero-slide-caption .hero-slide-label {
+    display: block;
+    margin-bottom: 0.35rem;
+    color: #6f42c1;
+    font-size: 0.65rem;
+}
+
+.hero-carousel .carousel-indicators {
+    top: auto;
+    right: 1rem;
+    bottom: 0.85rem;
+    left: auto;
+    gap: 0.35rem;
+    margin: 0;
+}
+
+.hero-carousel .carousel-indicators [data-bs-target] {
+    width: 0.45rem;
+    height: 0.45rem;
+    margin: 0;
+    border: 0;
+    border-radius: 50%;
+    opacity: 0.4;
+}
+
+.hero-carousel .carousel-indicators .active {
+    opacity: 1;
+}
+
+.hero-carousel .carousel-control-prev,
+.hero-carousel .carousel-control-next {
+    top: 40%;
+    bottom: auto;
+    width: auto;
+    opacity: 1;
+}
+
+.hero-carousel .carousel-control-prev {
+    left: 0.85rem;
+}
+
+.hero-carousel .carousel-control-next {
+    right: 0.85rem;
+}
+
+.hero-carousel-control-icon {
+    display: grid;
+    width: 2.5rem;
+    height: 2.5rem;
+    place-items: center;
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-radius: 50%;
+    color: #fff;
+    background: rgba(18, 21, 35, 0.48);
+    backdrop-filter: blur(8px);
+}
+
+@media (max-width: 991.98px) {
+    .hero-section {
+        text-align: center;
+    }
+
+    .hero-section .lead {
+        max-width: 42rem;
+        margin-right: auto;
+        margin-left: auto;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hero-carousel .carousel-item {
+        transition: none;
+    }
 }
 
 .section-padding {
@@ -125,5 +242,3 @@ body {
 .text-purple { color: #6f42c1 !important; }
 .bg-purple-light { background-color: rgba(111, 66, 193, 0.1); }
 .icon-stat { font-size: 1.75rem; color: #6c757d; } /* For icons next to stat card titles */
-
-

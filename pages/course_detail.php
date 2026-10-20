@@ -212,7 +212,9 @@ foreach ($modules as $module) {
                         <div class="bg-light text-muted text-center py-5">Course preview unavailable</div>
                     <?php endif; ?>
                     <div class="card-body">
-                        <h2 class="h3"><?php echo $display_price <= 0 ? 'Free' : '$' . number_format($display_price, 2) . ' USD'; ?></h2>
+                        <?php if (!$is_enrolled): ?>
+                            <h2 class="h3"><?php echo $display_price <= 0 ? 'Free' : '$' . number_format($display_price, 2) . ' USD'; ?></h2>
+                        <?php endif; ?>
                         <?php if ($is_enrolled): ?>
                                 <?php
                                 $first_lesson_id = 0;
@@ -297,9 +299,9 @@ foreach ($modules as $module) {
                 </div>
             </section>
 
-            <section class="card shadow-sm mb-4">
+            <section class="card shadow-sm mb-4" id="course-content">
                 <div class="card-body p-4">
-                    <h2 class="h4 mb-3">Course content</h2>
+                    <h2 class="h4 mb-3">Course video playlist</h2>
                     <?php if ($modules === []): ?>
                         <p class="text-muted mb-0">The instructor has not added course lessons yet.</p>
                     <?php else: ?>
