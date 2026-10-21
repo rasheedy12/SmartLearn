@@ -8,15 +8,27 @@ define('BASE_URL_INC', file_exists(dirname(__FILE__) . '/../index.php') ? '../' 
 
 // Use session data if available, otherwise mock data for direct testing
 $user_name = isset($_SESSION['user_name']) ? htmlspecialchars($_SESSION['user_name']) : 'Guest User';
-$user_avatar_path = isset($_SESSION['user_avatar']) ? htmlspecialchars($_SESSION['user_avatar']) : BASE_URL_INC . 'assets/images/admin.jpg';
+$user_avatar_path = trim((string) ($_SESSION['user_avatar'] ?? ''));
 $user_role = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : 'student'; // Default to student for testing
 
-// Ensure user_avatar_path is a valid URL or relative path from root
-if (!filter_var($user_avatar_path, FILTER_VALIDATE_URL) && !file_exists(rtrim($_SERVER['DOCUMENT_ROOT'], '/') . '/' . ltrim($user_avatar_path, '/'))) {
-     // Fallback if file doesn't exist and not a URL
-    $user_avatar = BASE_URL_INC . 'assets/images/admin.jpg'; // Default placeholder
-} else {
+if (
+    preg_match('~\Ahttps?://~i', $user_avatar_path)
+    && filter_var($user_avatar_path, FILTER_VALIDATE_URL)
+) {
     $user_avatar = $user_avatar_path;
+} else {
+    $avatar_relative_path = preg_replace('~^(?:\.\./)+~', '', $user_avatar_path);
+    $avatar_relative_path = ltrim((string) $avatar_relative_path, '/');
+    $avatar_file_path = dirname(__DIR__) . '/' . $avatar_relative_path;
+    if (
+        $avatar_relative_path !== ''
+        && !preg_match('~(^|/)\.\.(?:/|$)~', $avatar_relative_path)
+        && is_file($avatar_file_path)
+    ) {
+        $user_avatar = BASE_URL_INC . $avatar_relative_path;
+    } else {
+        $user_avatar = BASE_URL_INC . 'assets/images/user_avatar_placeholder.png';
+    }
 }
 
 $current_page_for_title = basename($_SERVER['PHP_SELF']);
@@ -73,7 +85,7 @@ $logout_url = ($is_admin_dir || $is_pages_dir) ? '../auth/handle_logout.php' : '
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userActionsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <span class="d-none d-sm-inline me-2"><?php echo $user_name; ?></span>
-                                <img src="<?php echo $user_avatar; ?>" alt="<?php echo $user_name; ?>" class="user-avatar" onerror="this.onerror=null; this.src='<?php echo BASE_URL_INC; ?>assets/images/user_avatar_placeholder.png';">
+                                <img src="<?php echo htmlspecialchars($user_avatar, ENT_QUOTES, 'UTF-8'); ?>" alt="<?php echo $user_name; ?>" class="user-avatar" onerror="this.onerror=null; this.src='<?php echo BASE_URL_INC; ?>assets/images/user_avatar_placeholder.png';">
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userActionsDropdown">
                                 <li><a class="dropdown-item" href="<?php echo $profile_url; ?>"><i class="fas fa-user-circle fa-fw me-2"></i>Profile</a></li>

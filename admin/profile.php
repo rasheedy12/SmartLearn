@@ -16,6 +16,7 @@ require_once BASE_URL . 'includes/db_config.php';
 if (empty($_SESSION['profile_csrf_token'])) {
     $_SESSION['profile_csrf_token'] = bin2hex(random_bytes(32));
 }
+$extra_js = [BASE_URL . 'assets/js/profile-picture.js'];
 
 // Fetch current user data from the database
 $current_user_id = $_SESSION['user_id'];
@@ -71,32 +72,55 @@ include BASE_URL . 'includes/dashboard_header.php';
         </div>
     <?php endif; ?>
 
-    <form action="<?php echo BASE_URL; ?>auth/handle_profile_update.php" method="POST" enctype="multipart/form-data">
-    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['profile_csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
     <div class="row">
         <div class="col-lg-4 mb-4">
             <div class="card shadow-sm text-center h-100">
                 <div class="card-body d-flex flex-column justify-content-center">
                     <?php
-                    // Robust check for avatar path
-                    $avatar_path = BASE_URL . 'assets/images/user_avatar_placeholder.png'; // Default
-                    if (!empty($current_user_data['avatar_url']) && file_exists(__DIR__ . '/../' . $current_user_data['avatar_url'])) {
-                        $avatar_path = BASE_URL . htmlspecialchars($current_user_data['avatar_url']);
+                    $stored_avatar = trim((string) ($current_user_data['avatar_url'] ?? ''));
+                    $avatar_path = BASE_URL . 'assets/images/user_avatar_placeholder.png';
+                    if (
+                        preg_match('~\Ahttps?://~i', $stored_avatar)
+                        && filter_var($stored_avatar, FILTER_VALIDATE_URL)
+                    ) {
+                        $avatar_path = $stored_avatar;
+                    } elseif ($stored_avatar !== '') {
+                        $relative_avatar = preg_replace('~^(?:\.\./)+~', '', $stored_avatar);
+                        $absolute_avatar = dirname(__DIR__) . '/' . ltrim((string) $relative_avatar, '/');
+                        if (
+                            !preg_match('~(^|/)\.\.(?:/|$)~', (string) $relative_avatar)
+                            && is_file($absolute_avatar)
+                        ) {
+                            $avatar_path = BASE_URL . ltrim((string) $relative_avatar, '/');
+                        }
                     }
                     ?>
-                    <img src="<?php echo $avatar_path; ?>" 
+                    <img id="profileAvatarPreview" src="<?php echo htmlspecialchars($avatar_path, ENT_QUOTES, 'UTF-8'); ?>"
                          alt="<?php echo htmlspecialchars($current_user_data['name']); ?>" 
                          class="rounded-circle mb-3 mx-auto" 
                          style="width: 120px; height: 120px; object-fit: cover;">
                     <h4 class="card-title"><?php echo htmlspecialchars($current_user_data['name']); ?></h4>
                     <p class="text-muted mb-1 text-capitalize"><?php echo htmlspecialchars($current_user_data['role']); ?></p>
                     <p class="small text-muted">Joined: <?php echo date("M d, Y", strtotime($current_user_data['joined_date'])); ?></p>
-                    <input type="file" class="form-control form-control-sm mt-2" id="profileAvatar" name="profile_avatar" accept="image/png, image/jpeg">
-                    <small class="form-text text-muted d-block">Upload a new profile picture. (Max 2MB)</small>
+                    <form id="profilePictureForm" action="<?php echo BASE_URL; ?>auth/handle_profile_update.php" method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['profile_csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
+                        <input type="hidden" name="action" value="update_profile_picture">
+                        <input type="file" class="visually-hidden" id="profileAvatar" name="profile_avatar"
+                               accept="image/jpeg, image/png, image/webp" aria-label="Select profile picture" required>
+                        <label for="profileAvatar" class="btn btn-outline-primary mt-2">Change Photo</label>
+                        <small class="form-text text-muted d-block">JPEG, PNG, or WebP. Maximum 2 MB.</small>
+                        <div id="profileAvatarError" class="text-danger small mt-2" role="alert" aria-live="polite"></div>
+                        <div class="d-flex justify-content-center gap-2 mt-3">
+                            <button id="saveProfileAvatar" type="submit" class="btn btn-primary btn-sm">Save Photo</button>
+                            <button id="cancelProfileAvatar" type="button" class="btn btn-outline-secondary btn-sm" disabled>Cancel</button>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
         <div class="col-lg-8 mb-4">
+            <form action="<?php echo BASE_URL; ?>auth/handle_profile_update.php" method="POST">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['profile_csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-white"><h5 class="mb-0">Account Information</h5></div>
                 <div class="card-body">
@@ -145,8 +169,8 @@ include BASE_URL . 'includes/dashboard_header.php';
              <div class="text-end mt-4">
                 <button type="submit" class="btn btn-primary px-4">Save Changes</button>
             </div>
+             </form>
         </div>
     </div>
-    </form>
 </div>
 <?php include '../includes/dashboard_footer.php'; ?>
