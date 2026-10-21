@@ -61,6 +61,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         $_SESSION["user_email"] = $db_email;
                         $_SESSION["user_role"] = $role;
                         $_SESSION["user_avatar"] = $avatar_url ? BASE_URL . $avatar_url : BASE_URL . 'assets/images/user_avatar_placeholder.png';
+                        $_SESSION['auth_success_message'] = 'Signed in successfully.';
 
                         // Update last login time
                         $update_login_sql = "UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE user_id = ?";

@@ -9,6 +9,7 @@ $course_id = $course_id && $course_id > 0 ? $course_id : 0;
 $user_id = (int) $_SESSION['user_id'];
 $error_message = '';
 $success_message = '';
+$wishlist_action_succeeded = false;
 $payment_error = trim((string) ($_GET['payment_error'] ?? ''));
 $paystack_configuration_error = paystack_checkout_configuration_error();
 $course = null;
@@ -80,8 +81,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && $course) {
     if (!student_verify_csrf()) {
         http_response_code(400);
         $error_message = 'Your request could not be verified. Refresh the page and try again.';
-    } elseif (($_POST['action'] ?? '') === 'toggle_wishlist') {
-        if ($is_wishlisted) {
+    } elseif (in_array(($_POST['action'] ?? ''), ['add_to_wishlist', 'remove_from_wishlist'], true)) {
+        if (($_POST['action'] ?? '') === 'remove_from_wishlist') {
             unset($_SESSION['student_wishlist'][$wishlist_key]);
             $success_message = 'Removed from your wishlist.';
             $is_wishlisted = false;
@@ -90,6 +91,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && $course) {
             $success_message = 'Saved to your wishlist for this session.';
             $is_wishlisted = true;
         }
+        $_SESSION['course_detail_wishlist_flash'] = [
+            'course_id' => $course_id,
+            'message' => $success_message,
+        ];
+        header('Location: course_detail.php?id=' . $course_id, true, 303);
+        exit;
     } elseif (($_POST['action'] ?? '') === 'enroll') {
         if ($is_enrolled) {
             $success_message = 'You are already enrolled in this course.';
@@ -119,6 +126,15 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && $course) {
                 $error_message = 'Enrollment could not be completed. Please try again.';
             }
         }
+    }
+}
+
+if ($course && isset($_SESSION['course_detail_wishlist_flash'])) {
+    $wishlist_flash = $_SESSION['course_detail_wishlist_flash'];
+    unset($_SESSION['course_detail_wishlist_flash']);
+    if ((int) ($wishlist_flash['course_id'] ?? 0) === $course_id) {
+        $success_message = (string) ($wishlist_flash['message'] ?? '');
+        $wishlist_action_succeeded = true;
     }
 }
 
@@ -262,7 +278,7 @@ foreach ($modules as $module) {
                         <?php endif; ?>
                         <form method="post">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(student_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
-                            <input type="hidden" name="action" value="toggle_wishlist">
+                            <input type="hidden" name="action" value="<?php echo $is_wishlisted ? 'remove_from_wishlist' : 'add_to_wishlist'; ?>">
                             <button class="btn btn-outline-secondary w-100" type="submit">
                                 <?php echo $is_wishlisted ? 'Remove from wishlist' : 'Add to wishlist'; ?>
                                 <i class="<?php echo $is_wishlisted ? 'fas' : 'far'; ?> fa-heart ms-1"></i>
@@ -284,7 +300,9 @@ foreach ($modules as $module) {
         <div class="alert alert-danger" role="alert"><?php echo htmlspecialchars($error_message, ENT_QUOTES, 'UTF-8'); ?></div>
     <?php endif; ?>
     <?php if ($success_message !== ''): ?>
-        <div class="alert alert-success" role="status"><?php echo htmlspecialchars($success_message, ENT_QUOTES, 'UTF-8'); ?></div>
+        <div class="alert alert-success" role="status" <?php echo $wishlist_action_succeeded ? 'data-success-refresh="true"' : ''; ?>>
+            <?php echo htmlspecialchars($success_message, ENT_QUOTES, 'UTF-8'); ?>
+        </div>
     <?php endif; ?>
     <div class="row g-4">
         <div class="col-lg-8">

@@ -11,6 +11,7 @@
     </div> <?php // End of .dashboard-wrapper ?>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="<?php echo BASE_URL_INC; ?>assets/js/action-feedback.js"></script>
     <?php if (isset($extra_js) && is_array($extra_js)): foreach ($extra_js as $js_file): ?>
         <script src="<?php echo $js_file; ?>"></script>
     <?php endforeach; endif; ?>

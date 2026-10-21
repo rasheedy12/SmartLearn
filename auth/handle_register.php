@@ -9,12 +9,21 @@ require_once BASE_URL . 'includes/db_config.php';
 $errors = []; // Array to store validation errors
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    if (
+        !isset($_POST['csrf_token'], $_SESSION['registration_csrf_token'])
+        || !hash_equals($_SESSION['registration_csrf_token'], (string) $_POST['csrf_token'])
+    ) {
+        $_SESSION['register_errors'] = ['Your request could not be verified. Refresh the page and try again.'];
+        header("Location: " . BASE_URL . "pages/register.php");
+        exit;
+    }
+
     // Sanitize and retrieve form data
-    $first_name = trim($_POST['first_name']);
-    $last_name = trim($_POST['last_name']);
-    $email = trim($_POST['email']);
-    $password = $_POST['password']; // Plain text password
-    $role = isset($_POST['role']) ? $_POST['role'] : 'student'; // Default to student if not set
+    $first_name = trim((string) ($_POST['first_name'] ?? ''));
+    $last_name = trim((string) ($_POST['last_name'] ?? ''));
+    $email = trim((string) ($_POST['email'] ?? ''));
+    $password = (string) ($_POST['password'] ?? '');
+    $role = $_POST['role'] ?? 'student';
     $agree_terms = isset($_POST['agree_terms']);
 
     // --- Validation ---
@@ -93,7 +102,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (!empty($errors)) {
         $_SESSION['register_errors'] = $errors; // Store errors in session to display on register page
         // You might also want to repopulate form fields
-        $_SESSION['register_form_data'] = $_POST;
+        $form_data = $_POST;
+        unset($form_data['password']);
+        $_SESSION['register_form_data'] = $form_data;
         header("Location: " . BASE_URL . "pages/register.php");
         exit;
     }

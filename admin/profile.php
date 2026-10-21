@@ -13,6 +13,10 @@ if (!isset($_SESSION['loggedin'], $_SESSION['user_id']) || $_SESSION['loggedin']
 
 require_once BASE_URL . 'includes/db_config.php';
 
+if (empty($_SESSION['profile_csrf_token'])) {
+    $_SESSION['profile_csrf_token'] = bin2hex(random_bytes(32));
+}
+
 // Fetch current user data from the database
 $current_user_id = $_SESSION['user_id'];
 $current_user_data = [];
@@ -44,6 +48,8 @@ if($stmt = $mysqli->prepare($sql_fetch_user)){
 // Display success/error messages passed back from the handler
 $success_message = isset($_SESSION['success_message']) ? $_SESSION['success_message'] : null;
 $error_message = isset($_SESSION['error_message']) ? $_SESSION['error_message'] : null;
+$profile_form_data = $_SESSION['profile_form_data'] ?? [];
+unset($_SESSION['profile_form_data']);
 unset($_SESSION['success_message']); // Clear after displaying
 unset($_SESSION['error_message']); // Clear after displaying
 
@@ -66,6 +72,7 @@ include BASE_URL . 'includes/dashboard_header.php';
     <?php endif; ?>
 
     <form action="<?php echo BASE_URL; ?>auth/handle_profile_update.php" method="POST" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['profile_csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
     <div class="row">
         <div class="col-lg-4 mb-4">
             <div class="card shadow-sm text-center h-100">
@@ -73,7 +80,7 @@ include BASE_URL . 'includes/dashboard_header.php';
                     <?php
                     // Robust check for avatar path
                     $avatar_path = BASE_URL . 'assets/images/user_avatar_placeholder.png'; // Default
-                    if (!empty($current_user_data['avatar_url']) && file_exists(BASE_URL . $current_user_data['avatar_url'])) {
+                    if (!empty($current_user_data['avatar_url']) && file_exists(__DIR__ . '/../' . $current_user_data['avatar_url'])) {
                         $avatar_path = BASE_URL . htmlspecialchars($current_user_data['avatar_url']);
                     }
                     ?>
@@ -96,11 +103,11 @@ include BASE_URL . 'includes/dashboard_header.php';
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="firstName" class="form-label">First Name</label>
-                            <input type="text" class="form-control" id="firstName" name="first_name" value="<?php echo htmlspecialchars($current_user_data['first_name']); ?>" required>
+                            <input type="text" class="form-control" id="firstName" name="first_name" maxlength="50" value="<?php echo htmlspecialchars($profile_form_data['first_name'] ?? $current_user_data['first_name'], ENT_QUOTES, 'UTF-8'); ?>" required>
                         </div>
                         <div class="col-md-6 mb-3">
                             <label for="lastName" class="form-label">Last Name</label>
-                            <input type="text" class="form-control" id="lastName" name="last_name" value="<?php echo htmlspecialchars($current_user_data['last_name']); ?>" required>
+                            <input type="text" class="form-control" id="lastName" name="last_name" maxlength="50" value="<?php echo htmlspecialchars($profile_form_data['last_name'] ?? $current_user_data['last_name'], ENT_QUOTES, 'UTF-8'); ?>" required>
                         </div>
                     </div>
                     <div class="mb-3">
@@ -110,7 +117,7 @@ include BASE_URL . 'includes/dashboard_header.php';
                     </div>
                     <div class="mb-3">
                         <label for="profileBio" class="form-label">Short Bio / About Me</label>
-                        <textarea class="form-control" id="profileBio" name="bio" rows="4"><?php echo htmlspecialchars($current_user_data['bio'] ?? ''); ?></textarea>
+                        <textarea class="form-control" id="profileBio" name="bio" rows="4" maxlength="2000"><?php echo htmlspecialchars($profile_form_data['bio'] ?? $current_user_data['bio'] ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
                     </div>
                 </div>
             </div>

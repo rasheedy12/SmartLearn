@@ -86,4 +86,11 @@ $logout_url = ($is_admin_dir || $is_pages_dir) ? '../auth/handle_logout.php' : '
                 </div>
             </nav>
             <main class="page-content">
+            <?php if (!empty($_SESSION['auth_success_message'])): ?>
+                <div class="alert alert-success alert-dismissible fade show" role="status">
+                    <?php echo htmlspecialchars((string) $_SESSION['auth_success_message'], ENT_QUOTES, 'UTF-8'); ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                <?php unset($_SESSION['auth_success_message']); ?>
+            <?php endif; ?>
             <?php // Main page content starts here and ends in dashboard_footer.php ?>

@@ -1,6 +1,10 @@
 <?php
 define('BASE_URL', '../');
 $page_title = "Login";
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+$status_message = ($_GET['status'] ?? '') === 'logged_out' ? 'You have been logged out.' : '';
 include '../includes/header.php';
 ?>
 
@@ -29,6 +33,9 @@ include '../includes/header.php';
             if (isset($_GET['success'])) {
                 echo '<div class="alert alert-success">' . htmlspecialchars($_GET['success'], ENT_QUOTES, 'UTF-8') . '</div>';
             }
+            if ($status_message !== '') {
+                echo '<div class="alert alert-success" role="status">' . htmlspecialchars($status_message, ENT_QUOTES, 'UTF-8') . '</div>';
+            }
             ?>
 
             <form action="<?php echo BASE_URL; ?>auth/handle_login.php" method="POST">
@@ -54,7 +61,7 @@ include '../includes/header.php';
             <div class="divider-text my-4">or</div>
             <button class="btn btn-social w-100 mb-2"><i class="fab fa-google"></i> Continue with Google</button>
             <button class="btn btn-social w-100"><i class="fab fa-microsoft"></i> Continue with Microsoft</button>
-            <p class="mt-4 text-center">Don't have an account? <a href="<?php echo BASE_URL; ?>register.php">Sign up for free</a></p>
+            <p class="mt-4 text-center">Don't have an account? <a href="<?php echo BASE_URL; ?>pages/register.php">Sign up for free</a></p>
         </div>
     </div>
 </div>

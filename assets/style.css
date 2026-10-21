@@ -242,3 +242,16 @@ body {
 .text-purple { color: #6f42c1 !important; }
 .bg-purple-light { background-color: rgba(111, 66, 193, 0.1); }
 .icon-stat { font-size: 1.75rem; color: #6c757d; } /* For icons next to stat card titles */
+button.action-processing {
+    pointer-events: none;
+}
+
+button.action-processing::after {
+    content: " Processing…";
+    font-weight: 400;
+}
+
+.action-processing-label {
+    margin-inline-start: 0.5rem;
+    color: #495057;
+}

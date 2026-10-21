@@ -183,5 +183,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             })
         })()
     </script>
+    <script src="<?php echo BASE_URL; ?>assets/js/action-feedback.js"></script>
 </body>
 </html>
