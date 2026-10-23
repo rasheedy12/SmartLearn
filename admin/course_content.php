@@ -602,8 +602,11 @@ include BASE_URL . 'includes/dashboard_header.php';
                     <article class="list-group-item p-3">
                         <div class="d-flex flex-wrap justify-content-between gap-2">
                             <h3 class="h6 mb-1"><?php echo htmlspecialchars($submission['assignment_title'], ENT_QUOTES, 'UTF-8'); ?> — <?php echo htmlspecialchars($submission['first_name'] . ' ' . $submission['last_name'], ENT_QUOTES, 'UTF-8'); ?></h3>
-                            <?php $review_submitted_at = assignment_submission_time($submission); ?>
-                            <small class="text-muted">Submitted <?php echo htmlspecialchars($review_submitted_at->format('M j, Y g:i a T'), ENT_QUOTES, 'UTF-8'); ?></small>
+                            <div class="d-flex align-items-center gap-2">
+                                <?php $review_submitted_at = assignment_submission_time($submission); ?>
+                                <small class="text-muted">Submitted <?php echo htmlspecialchars($review_submitted_at->format('M j, Y g:i a T'), ENT_QUOTES, 'UTF-8'); ?></small>
+                                <a class="btn btn-outline-primary btn-sm" href="assignment_review.php?submission_id=<?php echo (int) $submission['submission_id']; ?>">Review Assignment</a>
+                            </div>
                         </div>
                         <?php
                         $review_deadline = assignment_format_deadline($submission['due_at']);

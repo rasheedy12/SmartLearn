@@ -1,6 +1,7 @@
 <?php
 define('BASE_URL', '../');
 require_once BASE_URL . 'includes/instructor_helpers.php';
+require_once BASE_URL . 'includes/assignment_helpers.php';
 $instructor_id = (int) $_SESSION['user_id'];
 $page_title = 'Instructor Dashboard';
 
@@ -31,6 +32,41 @@ $unread_stmt->bind_param('i', $instructor_id);
 $unread_stmt->execute();
 $unread_messages = (int) $unread_stmt->get_result()->fetch_assoc()['unread_count'];
 $unread_stmt->close();
+
+$assignment_review_stmt = $mysqli->prepare(
+    'SELECT COUNT(*) AS pending_reviews
+     FROM learning_assignment_submissions s
+     INNER JOIN lessons l ON l.lesson_id = s.lesson_id
+     INNER JOIN modules m ON m.module_id = l.module_id
+     INNER JOIN courses c ON c.course_id = m.course_id
+     WHERE c.instructor_id = ? AND l.content_type = \'assignment\'
+       AND s.status = \'submitted\' AND s.submitted_at IS NOT NULL
+       AND s.grade IS NULL'
+);
+$assignment_review_stmt->bind_param('i', $instructor_id);
+$assignment_review_stmt->execute();
+$pending_assignment_reviews = (int) $assignment_review_stmt->get_result()->fetch_assoc()['pending_reviews'];
+$assignment_review_stmt->close();
+
+$recent_assignment_reviews_stmt = $mysqli->prepare(
+    'SELECT s.submission_id, s.submitted_at, s.grade,
+            UNIX_TIMESTAMP(s.submitted_at) AS submitted_at_epoch,
+            u.first_name, u.last_name, c.title AS course_title, l.title AS assignment_title
+     FROM learning_assignment_submissions s
+     INNER JOIN enrollments e ON e.enrollment_id = s.enrollment_id
+     INNER JOIN users u ON u.user_id = e.user_id
+     INNER JOIN lessons l ON l.lesson_id = s.lesson_id
+     INNER JOIN modules m ON m.module_id = l.module_id
+     INNER JOIN courses c ON c.course_id = m.course_id
+     WHERE c.instructor_id = ? AND l.content_type = \'assignment\'
+       AND s.status = \'submitted\' AND s.submitted_at IS NOT NULL
+     ORDER BY s.submitted_at DESC, s.submission_id DESC
+     LIMIT 5'
+);
+$recent_assignment_reviews_stmt->bind_param('i', $instructor_id);
+$recent_assignment_reviews_stmt->execute();
+$recent_assignment_reviews = $recent_assignment_reviews_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+$recent_assignment_reviews_stmt->close();
 
 $courses_stmt = $mysqli->prepare(
     'SELECT c.course_id, c.title, c.status, c.created_at, cat.name AS category_name,
@@ -155,6 +191,68 @@ include BASE_URL . 'includes/dashboard_header.php';
             </a>
         </div>
     </div>
+
+    <section class="card shadow-sm mb-4" aria-labelledby="assignment-reviews-heading">
+        <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <h2 class="h5 mb-0" id="assignment-reviews-heading">Assignment Reviews</h2>
+            <a class="btn btn-outline-primary btn-sm" href="<?php echo INSTRUCTOR_ADMIN_URL; ?>assignment_reviews.php">
+                Search and filter submissions
+            </a>
+        </div>
+        <div class="card-body">
+            <p class="mb-3">
+                <strong><?php echo number_format($pending_assignment_reviews); ?></strong>
+                pending review<?php echo $pending_assignment_reviews === 1 ? '' : 's'; ?>
+            </p>
+            <?php if (!$recent_assignment_reviews): ?>
+                <p class="text-muted mb-0">No submitted assignments are available for review yet.</p>
+            <?php else: ?>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col">Student</th>
+                                <th scope="col">Course</th>
+                                <th scope="col">Assignment</th>
+                                <th scope="col">Submitted</th>
+                                <th scope="col">Status</th>
+                                <th scope="col"><span class="visually-hidden">Action</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($recent_assignment_reviews as $assignment_review): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($assignment_review['first_name'] . ' ' . $assignment_review['last_name'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars($assignment_review['course_title'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td><?php echo htmlspecialchars($assignment_review['assignment_title'], ENT_QUOTES, 'UTF-8'); ?></td>
+                                    <td>
+                                        <?php
+                                        $submitted_at = assignment_submission_time($assignment_review);
+                                        echo $submitted_at
+                                            ? htmlspecialchars($submitted_at->format('M j, Y g:i a T'), ENT_QUOTES, 'UTF-8')
+                                            : 'Unavailable';
+                                        ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($assignment_review['grade'] === null): ?>
+                                            <span class="badge bg-warning text-dark">Pending review</span>
+                                        <?php else: ?>
+                                            <span class="badge bg-success">Graded</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="text-end">
+                                        <a class="btn btn-primary btn-sm" href="<?php echo INSTRUCTOR_ADMIN_URL; ?>assignment_review.php?submission_id=<?php echo (int) $assignment_review['submission_id']; ?>">
+                                            Review Assignment
+                                        </a>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php endif; ?>
+        </div>
+    </section>
 
     <div class="row">
         <div class="col-lg-8 mb-4">
