@@ -7,6 +7,9 @@
         if (!(form instanceof HTMLFormElement) || form.method.toLowerCase() !== 'post') {
             return;
         }
+        if (form.dataset.noActionFeedback === 'true') {
+            return;
+        }
         if (event.defaultPrevented) {
             return;
         }

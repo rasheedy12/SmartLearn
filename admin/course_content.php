@@ -2,6 +2,7 @@
 define('BASE_URL', '../');
 require_once BASE_URL . 'includes/instructor_helpers.php';
 require_once BASE_URL . 'includes/youtube_helpers.php';
+require_once BASE_URL . 'includes/assignment_helpers.php';
 $instructor_id = (int) $_SESSION['user_id'];
 $course_id = filter_input(INPUT_GET, 'course_id', FILTER_VALIDATE_INT);
 if (!$course_id || $course_id < 1) {
@@ -41,6 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $lesson_title = trim($_POST['lesson_title'] ?? '');
         $content_type = $_POST['content_type'] ?? '';
         $content = trim($_POST['lesson_content'] ?? '');
+        $assignment_due_at = null;
         $is_previewable = isset($_POST['is_previewable']) ? 1 : 0;
         $allowed_types = ['video', 'text', 'quiz', 'assignment', 'external_link'];
 
@@ -57,6 +59,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $errors[] = $content_type === 'assignment'
                 ? 'Enter the assignment instructions.'
                 : 'Enter the lesson content or URL.';
+        }
+        if ($content_type === 'assignment') {
+            try {
+                $deadline_input = $_POST['assignment_due_at'] ?? '';
+                if (!is_string($deadline_input)) {
+                    throw new InvalidArgumentException('Choose a valid assignment deadline.');
+                }
+                $assignment_due_at = assignment_parse_deadline($deadline_input);
+            } catch (InvalidArgumentException $exception) {
+                $errors[] = $exception->getMessage();
+            }
         }
         if ($content_type === 'video' && youtube_video_id($content) === null) {
             $errors[] = 'Enter a valid YouTube video URL for video lessons.';
@@ -86,10 +99,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $external_url = $content_type === 'external_link' ? $content : null;
                 $text_content = in_array($content_type, ['text', 'assignment', 'quiz'], true) ? $content : null;
                 $insert = $mysqli->prepare(
-                    'INSERT INTO lessons (module_id, title, content_type, video_url, text_content, external_url, order_index, is_previewable)
-                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+                    'INSERT INTO lessons (module_id, title, content_type, video_url, text_content, due_at, external_url, order_index, is_previewable)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
                 );
-                $insert->bind_param('issssssi', $module_id, $lesson_title, $content_type, $video_url, $text_content, $external_url, $order_index, $is_previewable);
+                $insert->bind_param('issssssii', $module_id, $lesson_title, $content_type, $video_url, $text_content, $assignment_due_at, $external_url, $order_index, $is_previewable);
                 $insert->execute();
                 $insert->close();
                 instructor_flash('success', 'Lesson added.');
@@ -206,6 +219,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'The quiz question could not be saved. Please try again.';
             }
         }
+    } elseif (($_POST['action'] ?? '') === 'update_assignment_deadline') {
+        $assignment_id = filter_var($_POST['lesson_id'] ?? null, FILTER_VALIDATE_INT);
+        if (!$assignment_id || $assignment_id < 1) {
+            $errors[] = 'Choose a valid assignment.';
+        }
+        try {
+            $deadline_input = $_POST['due_at'] ?? '';
+            if (!is_string($deadline_input)) {
+                throw new InvalidArgumentException('Choose a valid assignment deadline.');
+            }
+            $assignment_due_at = assignment_parse_deadline($deadline_input);
+        } catch (InvalidArgumentException $exception) {
+            $errors[] = $exception->getMessage();
+        }
+
+        if (!$errors) {
+            $update_deadline = $mysqli->prepare(
+                'UPDATE lessons l
+                 JOIN modules m ON m.module_id = l.module_id
+                 SET l.due_at = ?
+                 WHERE l.lesson_id = ? AND l.content_type = \'assignment\' AND m.course_id = ?'
+            );
+            $update_deadline->bind_param('sii', $assignment_due_at, $assignment_id, $course_id);
+            $update_deadline->execute();
+            $updated = $update_deadline->affected_rows;
+            $update_deadline->close();
+            if ($updated === 0) {
+                $check_deadline = $mysqli->prepare(
+                    'SELECT lesson_id FROM lessons l
+                     JOIN modules m ON m.module_id = l.module_id
+                     WHERE l.lesson_id = ? AND l.content_type = \'assignment\' AND m.course_id = ?'
+                );
+                $check_deadline->bind_param('ii', $assignment_id, $course_id);
+                $check_deadline->execute();
+                $assignment_exists = $check_deadline->get_result()->fetch_assoc();
+                $check_deadline->close();
+                if (!$assignment_exists) {
+                    $errors[] = 'That assignment is not available in this course.';
+                }
+            }
+        }
+
+        if (!$errors) {
+            instructor_flash('success', 'Assignment deadline updated.');
+            header('Location: course_content.php?course_id=' . $course_id . '#assignment-deadlines');
+            exit;
+        }
     } elseif (($_POST['action'] ?? '') === 'grade_assignment') {
         $submission_id = filter_var($_POST['submission_id'] ?? null, FILTER_VALIDATE_INT);
         $grade = trim((string) ($_POST['grade'] ?? ''));
@@ -226,7 +286,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  FROM learning_assignment_submissions s
                  JOIN lessons l ON l.lesson_id = s.lesson_id
                  JOIN modules m ON m.module_id = l.module_id
-                 WHERE s.submission_id = ? AND l.content_type = \'assignment\' AND m.course_id = ?
+                 WHERE s.submission_id = ? AND s.status = \'submitted\'
+                   AND s.submitted_at IS NOT NULL
+                   AND l.content_type = \'assignment\' AND m.course_id = ?
                  LIMIT 1'
             );
             $submission_check->bind_param('ii', $submission_id, $course_id);
@@ -246,7 +308,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  JOIN modules m ON m.module_id = l.module_id
                  JOIN courses c ON c.course_id = m.course_id
                  SET s.grade = ?, s.instructor_feedback = ?, s.graded_at = NOW()
-                 WHERE s.submission_id = ? AND l.content_type = \'assignment\' AND c.course_id = ?'
+                 WHERE s.submission_id = ? AND s.status = \'submitted\'
+                   AND s.submitted_at IS NOT NULL
+                   AND l.content_type = \'assignment\' AND c.course_id = ?'
             );
             $grade_value = (float) $grade;
             $update->bind_param('dsii', $grade_value, $feedback, $submission_id, $course_id);
@@ -263,7 +327,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $modules_stmt = $mysqli->prepare(
     'SELECT m.module_id, m.title,
-            l.lesson_id, l.title AS lesson_title, l.content_type, l.order_index AS lesson_order
+            l.lesson_id, l.title AS lesson_title, l.content_type, l.due_at, l.order_index AS lesson_order
      FROM modules m
      LEFT JOIN lessons l ON l.module_id = m.module_id
      WHERE m.course_id = ?
@@ -329,8 +393,10 @@ foreach ($quiz_rows as $row) {
 }
 
 $review_stmt = $mysqli->prepare(
-    'SELECT s.submission_id, s.submission_content, s.submitted_at, s.grade, s.instructor_feedback,
-            l.lesson_id, l.title AS assignment_title, c.title AS course_title,
+    'SELECT s.submission_id, s.submission_content, s.submitted_at,
+            UNIX_TIMESTAMP(s.submitted_at) AS submitted_at_epoch,
+            s.grade, s.instructor_feedback,
+            l.lesson_id, l.title AS assignment_title, l.due_at, c.title AS course_title,
             u.first_name, u.last_name, e.enrollment_id
      FROM learning_assignment_submissions s
      JOIN enrollments e ON e.enrollment_id = s.enrollment_id
@@ -339,12 +405,33 @@ $review_stmt = $mysqli->prepare(
      JOIN modules m ON m.module_id = l.module_id
      JOIN courses c ON c.course_id = m.course_id
      WHERE c.course_id = ? AND l.content_type = \'assignment\'
+       AND s.status = \'submitted\' AND s.submitted_at IS NOT NULL
      ORDER BY s.graded_at IS NULL DESC, s.submitted_at DESC'
 );
 $review_stmt->bind_param('i', $course_id);
 $review_stmt->execute();
 $assignment_submissions = $review_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 $review_stmt->close();
+
+$review_attachments = [];
+if ($assignment_submissions) {
+    $review_attachments_stmt = $mysqli->prepare(
+        'SELECT a.attachment_id, a.submission_id, a.original_name, a.file_size
+         FROM learning_assignment_attachments a
+         JOIN learning_assignment_submissions s ON s.submission_id = a.submission_id
+         JOIN lessons l ON l.lesson_id = s.lesson_id
+         JOIN modules m ON m.module_id = l.module_id
+         WHERE m.course_id = ? AND l.content_type = \'assignment\'
+           AND s.status = \'submitted\' AND a.status = \'submitted\'
+         ORDER BY a.created_at, a.attachment_id'
+    );
+    $review_attachments_stmt->bind_param('i', $course_id);
+    $review_attachments_stmt->execute();
+    foreach ($review_attachments_stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $attachment) {
+        $review_attachments[(int) $attachment['submission_id']][] = $attachment;
+    }
+    $review_attachments_stmt->close();
+}
 
 include BASE_URL . 'includes/dashboard_header.php';
 ?>
@@ -371,7 +458,7 @@ include BASE_URL . 'includes/dashboard_header.php';
                 </div>
             </div>
             <?php if ($modules): ?>
-                <div class="card shadow-sm">
+                <div class="card shadow-sm" id="assignment-deadlines">
                     <div class="card-header bg-white"><h5 class="mb-0">Add Lesson</h5></div>
                     <div class="card-body">
                         <form method="post">
@@ -391,6 +478,11 @@ include BASE_URL . 'includes/dashboard_header.php';
                                 </select>
                             </div>
                             <div class="mb-3"><label class="form-label" for="lessonContent">Content, activity instructions, or URL</label><textarea class="form-control" id="lessonContent" name="lesson_content" rows="4"></textarea><small class="form-text text-muted">Assignment instructions are required. For quizzes, add questions after creating the lesson.</small></div>
+                            <div class="mb-3" data-assignment-deadline hidden>
+                                <label class="form-label" for="assignmentDueAt">Assignment deadline (optional)</label>
+                                <input class="form-control" type="datetime-local" id="assignmentDueAt" name="assignment_due_at">
+                                <small class="form-text text-muted">Use your application timezone. Students may submit late work, which will be marked Late.</small>
+                            </div>
                                 <div class="form-check mb-3">
                                     <input class="form-check-input" type="checkbox" id="lessonPreviewable" name="is_previewable" value="1">
                                     <label class="form-check-label" for="lessonPreviewable">Allow students to preview this lesson before enrolling</label>
@@ -414,7 +506,20 @@ include BASE_URL . 'includes/dashboard_header.php';
                                     <?php foreach ($module['lessons'] as $lesson): ?>
                                         <li class="list-group-item d-flex justify-content-between align-items-center">
                                             <?php echo htmlspecialchars($lesson['lesson_title'], ENT_QUOTES, 'UTF-8'); ?>
-                                            <span class="badge bg-secondary"><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $lesson['content_type'])), ENT_QUOTES, 'UTF-8'); ?></span>
+                                            <div class="d-flex flex-wrap align-items-center gap-2">
+                                                <?php if ($lesson['content_type'] === 'assignment'): ?>
+                                                    <?php $lesson_deadline = assignment_format_deadline($lesson['due_at']); ?>
+                                                    <form method="post" action="course_content.php?course_id=<?php echo $course_id; ?>#assignment-deadlines" class="d-flex flex-wrap align-items-center gap-2">
+                                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(instructor_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+                                                        <input type="hidden" name="action" value="update_assignment_deadline">
+                                                        <input type="hidden" name="lesson_id" value="<?php echo (int) $lesson['lesson_id']; ?>">
+                                                        <label class="visually-hidden" for="deadline-<?php echo (int) $lesson['lesson_id']; ?>">Deadline for <?php echo htmlspecialchars($lesson['lesson_title'], ENT_QUOTES, 'UTF-8'); ?></label>
+                                                        <input class="form-control form-control-sm" type="datetime-local" id="deadline-<?php echo (int) $lesson['lesson_id']; ?>" name="due_at" value="<?php echo $lesson_deadline ? htmlspecialchars($lesson_deadline->format('Y-m-d\TH:i'), ENT_QUOTES, 'UTF-8') : ''; ?>">
+                                                        <button class="btn btn-sm btn-outline-primary" type="submit">Save deadline</button>
+                                                    </form>
+                                                <?php endif; ?>
+                                                <span class="badge bg-secondary"><?php echo htmlspecialchars(ucwords(str_replace('_', ' ', $lesson['content_type'])), ENT_QUOTES, 'UTF-8'); ?></span>
+                                            </div>
                                         </li>
                                     <?php endforeach; ?>
                                 </ol>
@@ -497,9 +602,40 @@ include BASE_URL . 'includes/dashboard_header.php';
                     <article class="list-group-item p-3">
                         <div class="d-flex flex-wrap justify-content-between gap-2">
                             <h3 class="h6 mb-1"><?php echo htmlspecialchars($submission['assignment_title'], ENT_QUOTES, 'UTF-8'); ?> — <?php echo htmlspecialchars($submission['first_name'] . ' ' . $submission['last_name'], ENT_QUOTES, 'UTF-8'); ?></h3>
-                            <small class="text-muted">Submitted <?php echo htmlspecialchars(date('M j, Y g:i a', strtotime($submission['submitted_at'])), ENT_QUOTES, 'UTF-8'); ?></small>
+                            <?php $review_submitted_at = assignment_submission_time($submission); ?>
+                            <small class="text-muted">Submitted <?php echo htmlspecialchars($review_submitted_at->format('M j, Y g:i a T'), ENT_QUOTES, 'UTF-8'); ?></small>
                         </div>
+                        <?php
+                        $review_deadline = assignment_format_deadline($submission['due_at']);
+                        $review_status = assignment_display_status($submission, $review_deadline);
+                        ?>
+                        <p class="small text-muted mb-2">
+                            Status: <strong><?php echo htmlspecialchars($review_status, ENT_QUOTES, 'UTF-8'); ?></strong>
+                            <?php if (assignment_was_submitted_late($submission, $review_deadline)): ?>
+                                · <span class="text-danger fw-semibold">Late submission</span>
+                            <?php endif; ?>
+                            <?php if ($review_deadline): ?>
+                                · Deadline <?php echo htmlspecialchars($review_deadline->format('M j, Y g:i a T'), ENT_QUOTES, 'UTF-8'); ?>
+                            <?php endif; ?>
+                        </p>
                         <p class="my-2"><?php echo nl2br(htmlspecialchars($submission['submission_content'], ENT_QUOTES, 'UTF-8')); ?></p>
+                        <?php if (!empty($review_attachments[(int) $submission['submission_id']])): ?>
+                            <ul class="list-unstyled small mb-3" aria-label="Submitted attachments">
+                                <?php foreach ($review_attachments[(int) $submission['submission_id']] as $attachment): ?>
+                                    <li>
+                                        <i class="fas fa-paperclip me-1" aria-hidden="true"></i>
+                                        <form method="post" action="../pages/download_assignment_attachment.php" class="d-inline" data-no-action-feedback="true">
+                                            <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(instructor_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+                                            <input type="hidden" name="attachment_id" value="<?php echo (int) $attachment['attachment_id']; ?>">
+                                            <button class="btn btn-link btn-sm p-0 align-baseline" type="submit">
+                                                <?php echo htmlspecialchars($attachment['original_name'], ENT_QUOTES, 'UTF-8'); ?>
+                                            </button>
+                                        </form>
+                                        <span class="text-muted">(<?php echo number_format((int) $attachment['file_size'] / 1024, 0); ?> KB)</span>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
                         <form method="post" class="row g-2 align-items-end">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(instructor_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
                             <input type="hidden" name="action" value="grade_assignment">

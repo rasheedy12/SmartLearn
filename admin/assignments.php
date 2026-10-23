@@ -1,6 +1,7 @@
 <?php
 define('BASE_URL', '../');
 require_once BASE_URL . 'includes/student_helpers.php';
+require_once BASE_URL . 'includes/assignment_helpers.php';
 $page_title = 'My Assignments';
 $student_id = (int) $_SESSION['user_id'];
 $filter = $_GET['status'] ?? 'all';
@@ -10,9 +11,13 @@ if (!in_array($filter, ['all', 'pending', 'completed'], true)) {
 
 $stmt = $mysqli->prepare(
     'SELECT e.enrollment_id, c.course_id, c.title AS course_title,
-            l.lesson_id, l.title, l.content_type,
+            l.lesson_id, l.title, l.content_type, l.due_at,
+            submission.status AS assignment_status, submission.submitted_at,
+            UNIX_TIMESTAMP(submission.submitted_at) AS submitted_at_epoch,
+            submission.instructor_feedback,
             CASE
-                WHEN (l.content_type = \'assignment\' AND submission.submission_id IS NOT NULL)
+                WHEN (l.content_type = \'assignment\' AND submission.status = \'submitted\'
+                      AND submission.submitted_at IS NOT NULL)
                   OR (l.content_type = \'quiz\' AND attempt.attempt_id IS NOT NULL)
                 THEN 1 ELSE 0
             END AS is_completed,
@@ -53,7 +58,7 @@ include BASE_URL . 'includes/dashboard_header.php';
 ?>
 <div class="container-fluid">
     <h1 class="h2 mb-4">My Assignments</h1>
-    <p class="lead mb-4">Quizzes and assignments in your enrolled courses. Due dates are not available in the current course data.</p>
+    <p class="lead mb-4">Quizzes and assignments from your enrolled courses. Assignment deadlines appear when an instructor sets one.</p>
 
     <div class="card shadow-sm">
         <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -84,6 +89,28 @@ include BASE_URL . 'includes/dashboard_header.php';
                                     <td>
                                         <?php if ($assignment['content_type'] === 'quiz' && $assignment['quiz_score'] !== null): ?>
                                             <span class="badge bg-success">Latest score: <?php echo number_format((float) $assignment['quiz_score'], 1); ?>%</span>
+                                        <?php elseif ($assignment['content_type'] === 'assignment' && $assignment['assignment_status'] === 'draft'): ?>
+                                            <span class="badge bg-secondary">Draft</span>
+                                        <?php elseif ($assignment['content_type'] === 'assignment' && $assignment['submitted_at'] !== null): ?>
+                                            <?php
+                                            $deadline = assignment_format_deadline($assignment['due_at']);
+                                            $submission_status = assignment_display_status([
+                                                'submitted_at' => $assignment['submitted_at'],
+                                                'submitted_at_epoch' => $assignment['submitted_at_epoch'],
+                                                'grade' => $assignment['assignment_grade'],
+                                                'instructor_feedback' => $assignment['instructor_feedback'],
+                                            ], $deadline);
+                                            ?>
+                                            <span class="badge <?php echo in_array($submission_status, ['Late'], true) ? 'bg-danger' : ($assignment['assignment_grade'] !== null ? 'bg-success' : 'bg-primary'); ?>">
+                                                <?php echo htmlspecialchars($submission_status, ENT_QUOTES, 'UTF-8'); ?>
+                                                <?php if ($assignment['assignment_grade'] !== null): ?>: <?php echo number_format((float) $assignment['assignment_grade'], 1); ?>%<?php endif; ?>
+                                            </span>
+                                            <?php if ($assignment['assignment_grade'] !== null && assignment_was_submitted_late([
+                                                'submitted_at' => $assignment['submitted_at'],
+                                                'submitted_at_epoch' => $assignment['submitted_at_epoch'],
+                                            ], $deadline)): ?>
+                                                <span class="badge bg-danger">Late</span>
+                                            <?php endif; ?>
                                         <?php elseif ($assignment['content_type'] === 'assignment' && $assignment['assignment_grade'] !== null): ?>
                                             <span class="badge bg-success">Graded: <?php echo number_format((float) $assignment['assignment_grade'], 1); ?>%</span>
                                         <?php elseif ($assignment['is_completed']): ?>

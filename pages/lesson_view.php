@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../includes/student_helpers.php';
 require_once __DIR__ . '/../includes/youtube_helpers.php';
+require_once __DIR__ . '/../includes/assignment_helpers.php';
 
 $course_id = filter_var($_GET['course_id'] ?? null, FILTER_VALIDATE_INT);
 $lesson_id = filter_var($_GET['lesson_id'] ?? null, FILTER_VALIDATE_INT);
@@ -15,6 +16,8 @@ $playlist = [];
 $quiz_questions = [];
 $latest_quiz_attempt = null;
 $assignment_submission = null;
+$assignment_attachments = [];
+$assignment_deadline = null;
 $transaction_started = false;
 
 try {
@@ -23,7 +26,7 @@ try {
             'SELECT c.course_id, c.title AS course_title, c.status AS course_status,
                     l.lesson_id, l.title AS lesson_title,
                     l.content_type, l.video_url, l.text_content, l.external_url,
-                    l.duration_minutes, l.is_previewable, m.title AS module_title
+                    l.duration_minutes, l.is_previewable, l.due_at, m.title AS module_title
              FROM lessons l
              JOIN modules m ON m.module_id = l.module_id
              JOIN courses c ON c.course_id = m.course_id
@@ -105,7 +108,9 @@ try {
             $attempt_stmt->close();
         } elseif ($lesson['content_type'] === 'assignment' && $is_enrolled) {
             $submission_stmt = $mysqli->prepare(
-                'SELECT submission_content, submitted_at, grade, instructor_feedback, graded_at
+                'SELECT submission_id, submission_content, status, draft_content, draft_version,
+                        submitted_at, UNIX_TIMESTAMP(submitted_at) AS submitted_at_epoch,
+                        grade, instructor_feedback, graded_at
                  FROM learning_assignment_submissions
                  WHERE enrollment_id = ? AND lesson_id = ? LIMIT 1'
             );
@@ -113,6 +118,20 @@ try {
             $submission_stmt->execute();
             $assignment_submission = $submission_stmt->get_result()->fetch_assoc();
             $submission_stmt->close();
+            $assignment_deadline = assignment_format_deadline($lesson['due_at']);
+
+            if ($assignment_submission) {
+                $attachments_stmt = $mysqli->prepare(
+                    'SELECT attachment_id, original_name, file_size, status, created_at
+                     FROM learning_assignment_attachments
+                     WHERE submission_id = ? AND status IN (\'draft\', \'submitted\')
+                     ORDER BY created_at, attachment_id'
+                );
+                $attachments_stmt->bind_param('i', $assignment_submission['submission_id']);
+                $attachments_stmt->execute();
+                $assignment_attachments = $attachments_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+                $attachments_stmt->close();
+            }
         }
     }
 } catch (Throwable $exception) {
@@ -121,12 +140,33 @@ try {
 }
 
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && $lesson) {
-    if (!student_verify_csrf()) {
+    $posted_action = (string) ($_POST['action'] ?? '');
+    $is_ajax_draft = $posted_action === 'save_assignment_draft'
+        && ($_POST['ajax'] ?? '') === '1';
+    $is_ajax_request = strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+
+    if (
+        ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST'
+        && $lesson['content_type'] === 'assignment'
+        && (int) ($_SERVER['CONTENT_LENGTH'] ?? 0) > assignment_parse_ini_bytes((string) ini_get('post_max_size'))
+    ) {
+        $error_message = 'The uploaded files exceed the server request limit. Your existing work is unchanged.';
+        if ($is_ajax_draft || $is_ajax_request) {
+            assignment_json_response(['success' => false, 'message' => $error_message], 413);
+        }
+        http_response_code(413);
+    } elseif (!student_verify_csrf()) {
         http_response_code(400);
         $error_message = 'Your request could not be verified. Refresh the page and try again.';
+        if ($is_ajax_draft) {
+            assignment_json_response(['success' => false, 'message' => $error_message], 400);
+        }
     } elseif (!$is_enrolled) {
         http_response_code(403);
-        $error_message = 'Enroll in this course before recording lesson progress.';
+        $error_message = 'Enroll in this course before completing this action.';
+        if ($is_ajax_draft) {
+            assignment_json_response(['success' => false, 'message' => $error_message], 403);
+        }
     } elseif (($_POST['action'] ?? '') === 'complete_lesson') {
         try {
             $mysqli->begin_transaction();
@@ -143,36 +183,275 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && $lesson) {
             error_log('Lesson completion could not be saved: ' . $exception->getMessage());
             $error_message = 'Your lesson progress could not be saved. Please try again.';
         }
-    } elseif (($_POST['action'] ?? '') === 'submit_assignment' && $lesson['content_type'] === 'assignment') {
-        $submission_content = trim((string) ($_POST['submission_content'] ?? ''));
+    } elseif ($posted_action === 'save_assignment_draft' && $lesson['content_type'] === 'assignment') {
+        $draft_content = $_POST['draft_content'] ?? '';
+        $assignment_posted_content = is_string($draft_content) ? $draft_content : '';
+        $draft_version = filter_var($_POST['draft_version'] ?? null, FILTER_VALIDATE_INT);
+        $moved_paths = [];
+        try {
+            if (!is_string($draft_content)) {
+                throw new InvalidArgumentException('Draft response must be plain text.');
+            }
+            if (mb_strlen($draft_content) > 20000) {
+                throw new InvalidArgumentException('Draft responses may contain no more than 20,000 characters.');
+            }
+            $uploads = assignment_validate_uploads($_FILES['attachments'] ?? []);
+            $storage_directory = $uploads ? assignment_storage_directory() : '';
+
+            $mysqli->begin_transaction();
+            $transaction_started = true;
+            $submission_stmt = $mysqli->prepare(
+                'SELECT submission_id, draft_version, submitted_at
+                 FROM learning_assignment_submissions
+                 WHERE enrollment_id = ? AND lesson_id = ?
+                 FOR UPDATE'
+            );
+            $submission_stmt->bind_param('ii', $enrollment['enrollment_id'], $lesson_id);
+            $submission_stmt->execute();
+            $existing_submission = $submission_stmt->get_result()->fetch_assoc();
+            $submission_stmt->close();
+
+            if ($existing_submission) {
+                if ($draft_version === false || $draft_version !== (int) $existing_submission['draft_version']) {
+                    $mysqli->rollback();
+                    $transaction_started = false;
+                    $error_message = 'This draft changed in another tab. Reload the page before saving again.';
+                    if ($is_ajax_draft) {
+                        assignment_json_response([
+                            'success' => false,
+                            'message' => $error_message,
+                            'conflict' => true,
+                        ], 409);
+                    }
+                    throw new RuntimeException($error_message);
+                }
+
+                $submission_id = (int) $existing_submission['submission_id'];
+                $update_stmt = $mysqli->prepare(
+                    'UPDATE learning_assignment_submissions
+                     SET draft_content = ?, draft_version = draft_version + 1
+                     WHERE submission_id = ?'
+                );
+                $update_stmt->bind_param('si', $draft_content, $submission_id);
+                $update_stmt->execute();
+                $update_stmt->close();
+            } else {
+                if ($draft_version === false || $draft_version !== 0) {
+                    $mysqli->rollback();
+                    $transaction_started = false;
+                    $error_message = 'This draft changed in another tab. Reload the page before saving again.';
+                    if ($is_ajax_draft) {
+                        assignment_json_response([
+                            'success' => false,
+                            'message' => $error_message,
+                            'conflict' => true,
+                        ], 409);
+                    }
+                    throw new RuntimeException($error_message);
+                }
+                $insert_stmt = $mysqli->prepare(
+                    'INSERT INTO learning_assignment_submissions
+                        (enrollment_id, lesson_id, submission_content, status, draft_content, draft_version, submitted_at)
+                     VALUES (?, ?, \'\', \'draft\', ?, 1, NULL)'
+                );
+                $insert_stmt->bind_param('iis', $enrollment['enrollment_id'], $lesson_id, $draft_content);
+                $insert_stmt->execute();
+                $submission_id = (int) $insert_stmt->insert_id;
+                $insert_stmt->close();
+            }
+
+            $draft_attachment_count_stmt = $mysqli->prepare(
+                'SELECT COUNT(*) AS attachment_count
+                 FROM learning_assignment_attachments
+                 WHERE submission_id = ? AND status = \'draft\''
+            );
+            $draft_attachment_count_stmt->bind_param('i', $submission_id);
+            $draft_attachment_count_stmt->execute();
+            $draft_attachment_count = (int) $draft_attachment_count_stmt->get_result()->fetch_assoc()['attachment_count'];
+            $draft_attachment_count_stmt->close();
+            if ($draft_attachment_count + count($uploads) > 5) {
+                throw new InvalidArgumentException('An assignment draft can have no more than five unsubmitted attachments.');
+            }
+            if ($uploads) {
+                assignment_store_attachment_records(
+                    $mysqli,
+                    $submission_id,
+                    $uploads,
+                    $storage_directory,
+                    $moved_paths
+                );
+            }
+
+            $mysqli->commit();
+            $transaction_started = false;
+            if ($is_ajax_draft) {
+                assignment_json_response([
+                    'success' => true,
+                    'message' => 'Draft saved',
+                    'draft_version' => $existing_submission
+                        ? (int) $existing_submission['draft_version'] + 1
+                        : 1,
+                    'display_status' => $existing_submission && !empty($existing_submission['submitted_at'])
+                        ? null
+                        : 'Draft',
+                ]);
+            }
+
+            header('Location: lesson_view.php?course_id=' . $course_id . '&lesson_id=' . $lesson_id . '&draft_saved=1');
+            exit;
+        } catch (InvalidArgumentException $exception) {
+            if ($transaction_started) {
+                $mysqli->rollback();
+                $transaction_started = false;
+            }
+            foreach ($moved_paths as $moved_path) {
+                if (is_file($moved_path)) {
+                    unlink($moved_path);
+                }
+            }
+            $error_message = $exception->getMessage();
+            if ($is_ajax_draft) {
+                assignment_json_response(['success' => false, 'message' => $error_message], 422);
+            }
+        } catch (Throwable $exception) {
+            if ($transaction_started) {
+                $mysqli->rollback();
+            }
+            foreach ($moved_paths as $moved_path) {
+                if (is_file($moved_path)) {
+                    unlink($moved_path);
+                }
+            }
+            error_log('Assignment draft could not be saved: ' . $exception->getMessage());
+            $error_message = str_contains($exception->getMessage(), 'changed in another tab')
+                ? $exception->getMessage()
+                : 'Your assignment draft could not be saved. Your existing submission is unchanged.';
+            if ($is_ajax_draft) {
+                assignment_json_response(['success' => false, 'message' => $error_message], 500);
+            }
+        }
+    } elseif ($posted_action === 'submit_assignment' && $lesson['content_type'] === 'assignment') {
+        $submission_content = $_POST['submission_content'] ?? '';
+        if (!is_string($submission_content)) {
+            $submission_content = '';
+        }
+        $submission_content = trim($submission_content);
+        $assignment_posted_content = $submission_content;
         if ($submission_content === '' || mb_strlen($submission_content) > 20000) {
             $error_message = 'Enter an assignment response of 1 to 20,000 characters.';
         } else {
+            $moved_paths = [];
             try {
+                $uploads = assignment_validate_uploads($_FILES['attachments'] ?? []);
+                $storage_directory = $uploads ? assignment_storage_directory() : '';
                 $mysqli->begin_transaction();
                 $transaction_started = true;
-                $submission_stmt = $mysqli->prepare(
-                    'INSERT INTO learning_assignment_submissions
-                        (enrollment_id, lesson_id, submission_content, submitted_at)
-                     VALUES (?, ?, ?, NOW())
-                     ON DUPLICATE KEY UPDATE
-                        submission_content = VALUES(submission_content),
-                        submitted_at = NOW(),
-                        grade = NULL,
-                        instructor_feedback = NULL,
-                        graded_at = NULL'
+                $existing_stmt = $mysqli->prepare(
+                    'SELECT submission_id, grade, draft_version
+                     FROM learning_assignment_submissions
+                     WHERE enrollment_id = ? AND lesson_id = ?
+                     FOR UPDATE'
                 );
-                $submission_stmt->bind_param('iis', $enrollment['enrollment_id'], $lesson_id, $submission_content);
-                $submission_stmt->execute();
-                $submission_stmt->close();
+                $existing_stmt->bind_param('ii', $enrollment['enrollment_id'], $lesson_id);
+                $existing_stmt->execute();
+                $existing_submission = $existing_stmt->get_result()->fetch_assoc();
+                $existing_stmt->close();
+
+                if ($existing_submission && $existing_submission['grade'] !== null
+                    && ($_POST['confirm_resubmission'] ?? '') !== '1') {
+                    throw new InvalidArgumentException(
+                        'Confirm that you understand resubmitting replaces the current grade and feedback.'
+                    );
+                }
+
+                if ($existing_submission) {
+                    $submission_id = (int) $existing_submission['submission_id'];
+                    $update_stmt = $mysqli->prepare(
+                        'UPDATE learning_assignment_submissions
+                         SET submission_content = ?, status = \'submitted\', submitted_at = NOW(),
+                             draft_content = NULL, draft_version = draft_version + 1,
+                             grade = NULL, instructor_feedback = NULL, graded_at = NULL
+                         WHERE submission_id = ?'
+                    );
+                    $update_stmt->bind_param('si', $submission_content, $submission_id);
+                    $update_stmt->execute();
+                    $update_stmt->close();
+                } else {
+                    $insert_stmt = $mysqli->prepare(
+                        'INSERT INTO learning_assignment_submissions
+                            (enrollment_id, lesson_id, submission_content, status, submitted_at)
+                         VALUES (?, ?, ?, \'submitted\', NOW())'
+                    );
+                    $insert_stmt->bind_param('iis', $enrollment['enrollment_id'], $lesson_id, $submission_content);
+                    $insert_stmt->execute();
+                    $submission_id = (int) $insert_stmt->insert_id;
+                    $insert_stmt->close();
+                }
+
+                $draft_attachments_stmt = $mysqli->prepare(
+                    'SELECT COUNT(*) AS attachment_count
+                     FROM learning_assignment_attachments
+                     WHERE submission_id = ? AND status = \'draft\''
+                );
+                $draft_attachments_stmt->bind_param('i', $submission_id);
+                $draft_attachments_stmt->execute();
+                $draft_attachment_count = (int) $draft_attachments_stmt->get_result()->fetch_assoc()['attachment_count'];
+                $draft_attachments_stmt->close();
+                if ($draft_attachment_count + count($uploads) > 5) {
+                    throw new InvalidArgumentException('An assignment can have no more than five submitted attachments.');
+                }
+                if ($uploads) {
+                    assignment_store_attachment_records(
+                        $mysqli,
+                        $submission_id,
+                        $uploads,
+                        $storage_directory,
+                        $moved_paths
+                    );
+                }
+                if ($draft_attachment_count + count($uploads) > 0) {
+                    $supersede_stmt = $mysqli->prepare(
+                        'UPDATE learning_assignment_attachments
+                         SET status = \'superseded\'
+                         WHERE submission_id = ? AND status = \'submitted\''
+                    );
+                    $supersede_stmt->bind_param('i', $submission_id);
+                    $supersede_stmt->execute();
+                    $supersede_stmt->close();
+                    $submit_attachments_stmt = $mysqli->prepare(
+                        'UPDATE learning_assignment_attachments
+                         SET status = \'submitted\'
+                         WHERE submission_id = ? AND status = \'draft\''
+                    );
+                    $submit_attachments_stmt->bind_param('i', $submission_id);
+                    $submit_attachments_stmt->execute();
+                    $submit_attachments_stmt->close();
+                }
+
                 student_record_lesson_completion($mysqli, (int) $enrollment['enrollment_id'], $lesson_id, $course_id);
                 $mysqli->commit();
                 $transaction_started = false;
                 header('Location: lesson_view.php?course_id=' . $course_id . '&lesson_id=' . $lesson_id . '&assignment_submitted=1');
                 exit;
+            } catch (InvalidArgumentException $exception) {
+                if ($transaction_started) {
+                    $mysqli->rollback();
+                    $transaction_started = false;
+                }
+                foreach ($moved_paths as $moved_path) {
+                    if (is_file($moved_path)) {
+                        unlink($moved_path);
+                    }
+                }
+                $error_message = $exception->getMessage();
             } catch (Throwable $exception) {
                 if ($transaction_started) {
                     $mysqli->rollback();
+                }
+                foreach ($moved_paths as $moved_path) {
+                    if (is_file($moved_path)) {
+                        unlink($moved_path);
+                    }
                 }
                 error_log('Assignment submission could not be saved: ' . $exception->getMessage());
                 $error_message = 'Your assignment could not be submitted. Please try again.';
@@ -278,6 +557,13 @@ $video_url = $lesson['video_url'] ?? '';
 $youtube_id = youtube_video_id($video_url);
 $direct_video = preg_match('~^https://[^\\s]+\\.(?:mp4|webm|ogg)(?:\\?[^\\s]*)?$~i', $video_url) === 1;
 $external_link = $lesson['external_url'] ?? '';
+$assignment_status = $assignment_submission
+    ? assignment_display_status($assignment_submission, $assignment_deadline)
+    : 'Not submitted';
+$assignment_editor_content = isset($assignment_posted_content)
+    ? $assignment_posted_content
+    : (string) ($assignment_submission['draft_content'] ?? $assignment_submission['submission_content'] ?? '');
+$extra_js = ['../assets/js/assignment-submission.js'];
 include __DIR__ . '/../includes/dashboard_header.php';
 ?>
 <div class="container-fluid">
@@ -298,6 +584,9 @@ include __DIR__ . '/../includes/dashboard_header.php';
         <?php endif; ?>
         <?php if (isset($_GET['assignment_submitted']) && $_GET['assignment_submitted'] === '1'): ?>
             <div class="alert alert-success" role="status">Assignment submitted successfully. Your instructor will review it.</div>
+        <?php endif; ?>
+        <?php if (isset($_GET['draft_saved']) && $_GET['draft_saved'] === '1'): ?>
+            <div class="alert alert-success" role="status">Draft saved. It has not been submitted or marked complete.</div>
         <?php endif; ?>
         <?php if (isset($_GET['quiz_submitted']) && $_GET['quiz_submitted'] === '1' && $latest_quiz_attempt): ?>
             <div class="alert alert-success" role="status">
@@ -342,12 +631,17 @@ include __DIR__ . '/../includes/dashboard_header.php';
                             <a href="<?php echo htmlspecialchars($external_link, ENT_QUOTES, 'UTF-8'); ?>"
                                class="btn btn-light" target="_blank" rel="noopener noreferrer">Open lesson resource</a>
                         </div>
+                    <?php elseif ($lesson['content_type'] === 'assignment'): ?>
+                        <div class="text-center text-white py-5">
+                            <i class="fas fa-file-pen fa-3x mb-3" aria-hidden="true"></i>
+                            <p class="mb-0">Assignment activity</p>
+                        </div>
                     <?php else: ?>
                         <div class="text-center text-white py-5">No video or lesson content has been added.</div>
                     <?php endif; ?>
                 </div>
 
-                <?php if (!empty($lesson['text_content']) && $lesson['content_type'] !== 'text'): ?>
+                <?php if (!empty($lesson['text_content']) && !in_array($lesson['content_type'], ['text', 'assignment'], true)): ?>
                     <section class="card mb-3">
                         <div class="card-body">
                             <h2 class="h5"><?php echo $lesson['content_type'] === 'assignment' ? 'Assignment instructions' : ($lesson['content_type'] === 'quiz' ? 'Quiz instructions' : 'Lesson notes'); ?></h2>
@@ -357,28 +651,162 @@ include __DIR__ . '/../includes/dashboard_header.php';
                 <?php endif; ?>
 
                 <?php if ($lesson['content_type'] === 'assignment' && $is_enrolled): ?>
-                    <section class="card mb-3">
-                        <div class="card-header"><h2 class="h5 mb-0">Your assignment response</h2></div>
-                        <div class="card-body">
-                            <?php if ($assignment_submission): ?>
-                                <p class="small text-muted">Last submitted <?php echo htmlspecialchars(date('M j, Y g:i a', strtotime($assignment_submission['submitted_at'])), ENT_QUOTES, 'UTF-8'); ?></p>
-                                <?php if ($assignment_submission['grade'] !== null): ?>
-                                    <div class="alert alert-info">
-                                        <strong>Grade:</strong> <?php echo number_format((float) $assignment_submission['grade'], 2); ?>%
-                                        <?php if (!empty($assignment_submission['instructor_feedback'])): ?>
-                                            <div class="mt-2"><?php echo nl2br(htmlspecialchars($assignment_submission['instructor_feedback'], ENT_QUOTES, 'UTF-8')); ?></div>
-                                        <?php endif; ?>
-                                    </div>
-                                <?php else: ?>
-                                    <p class="text-muted">Your submission is awaiting instructor review.</p>
+                    <?php
+                    $assignment_status_class = match ($assignment_status) {
+                        'Late' => 'bg-danger',
+                        'Graded', 'Returned' => 'bg-success',
+                        'Submitted' => 'bg-primary',
+                        'Draft' => 'bg-secondary',
+                        default => 'bg-light text-dark border',
+                    };
+                    $deadline_iso = $assignment_deadline
+                        ? $assignment_deadline->format(DateTimeInterface::ATOM)
+                        : '';
+                    $submission_date = $assignment_submission
+                        ? assignment_submission_time($assignment_submission)
+                        : null;
+                    $draft_version = (int) ($assignment_submission['draft_version'] ?? 0);
+                    ?>
+                    <section class="card shadow-sm mb-3 assignment-panel"
+                             <?php if ($deadline_iso !== ''): ?>data-assignment-deadline="<?php echo htmlspecialchars($deadline_iso, ENT_QUOTES, 'UTF-8'); ?>"<?php endif; ?>>
+                        <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                            <h2 class="h5 mb-0">Assignment submission</h2>
+                            <div class="d-flex flex-wrap gap-2">
+                                <span class="badge <?php echo $assignment_status_class; ?>" data-assignment-status><?php echo htmlspecialchars($assignment_status, ENT_QUOTES, 'UTF-8'); ?></span>
+                                <?php if ($assignment_submission && assignment_was_submitted_late($assignment_submission, $assignment_deadline)): ?>
+                                    <span class="badge bg-danger">Late submission</span>
                                 <?php endif; ?>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <h3 class="h6"><?php echo htmlspecialchars($lesson['lesson_title'], ENT_QUOTES, 'UTF-8'); ?></h3>
+                            <?php if (!empty($lesson['text_content'])): ?>
+                                <div class="assignment-instructions mb-3">
+                                    <h4 class="small fw-bold">Instructions</h4>
+                                    <div><?php echo nl2br(htmlspecialchars($lesson['text_content'], ENT_QUOTES, 'UTF-8')); ?></div>
+                                </div>
                             <?php endif; ?>
-                            <form method="post">
+
+                            <?php if ($assignment_deadline): ?>
+                                <div class="alert alert-warning py-2" role="status">
+                                    <strong>Deadline:</strong>
+                                    <time datetime="<?php echo htmlspecialchars($deadline_iso, ENT_QUOTES, 'UTF-8'); ?>">
+                                        <?php echo htmlspecialchars($assignment_deadline->format('M j, Y g:i a T'), ENT_QUOTES, 'UTF-8'); ?>
+                                    </time>
+                                    <?php $remaining_seconds = $assignment_deadline->getTimestamp() - time(); ?>
+                                    <span class="d-block small" data-deadline-countdown aria-live="polite">
+                                        <?php if ($remaining_seconds > 0): ?>
+                                            Time remaining: <?php echo (int) floor($remaining_seconds / 86400); ?>d
+                                            <?php echo (int) floor(($remaining_seconds % 86400) / 3600); ?>h
+                                            <?php echo (int) floor(($remaining_seconds % 3600) / 60); ?>m
+                                        <?php else: ?>
+                                            Deadline passed. Late submissions are accepted and will be marked Late.
+                                        <?php endif; ?>
+                                    </span>
+                                    <span class="d-block small">Late submissions are accepted and marked Late.</span>
+                                </div>
+                            <?php else: ?>
+                                <p class="small text-muted">No deadline has been set for this assignment.</p>
+                            <?php endif; ?>
+
+                            <?php if ($submission_date): ?>
+                                <p class="small text-muted">
+                                    Submitted <?php echo htmlspecialchars($submission_date->format('M j, Y g:i a T'), ENT_QUOTES, 'UTF-8'); ?>
+                                </p>
+                            <?php endif; ?>
+                            <?php if ($assignment_submission && !empty($assignment_submission['submitted_at']) && $assignment_submission['draft_content'] !== null): ?>
+                                <p class="small text-info">You have a saved draft. Your previous submitted response remains unchanged until you submit again.</p>
+                            <?php endif; ?>
+
+                            <?php if ($assignment_submission && $assignment_submission['grade'] !== null): ?>
+                                <div class="alert alert-info" role="status">
+                                    <strong><?php echo $assignment_status === 'Returned' ? 'Grade and feedback' : 'Grade'; ?>:</strong>
+                                    <?php echo number_format((float) $assignment_submission['grade'], 2); ?>%
+                                    <?php if (!empty($assignment_submission['instructor_feedback'])): ?>
+                                        <div class="mt-2"><?php echo nl2br(htmlspecialchars($assignment_submission['instructor_feedback'], ENT_QUOTES, 'UTF-8')); ?></div>
+                                    <?php endif; ?>
+                                </div>
+                            <?php elseif ($assignment_submission && !empty($assignment_submission['submitted_at'])): ?>
+                                <p class="text-muted">Your submission is awaiting instructor review.</p>
+                            <?php endif; ?>
+
+                            <?php if ($assignment_attachments): ?>
+                                <div class="mb-3">
+                                    <h4 class="small fw-bold">Attached files</h4>
+                                    <ul class="list-unstyled mb-0">
+                                        <?php foreach ($assignment_attachments as $attachment): ?>
+                                            <li class="mb-1">
+                                                <i class="fas fa-paperclip me-1" aria-hidden="true"></i>
+                                                <form method="post" action="download_assignment_attachment.php" class="d-inline" data-no-action-feedback="true">
+                                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(student_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+                                                    <input type="hidden" name="attachment_id" value="<?php echo (int) $attachment['attachment_id']; ?>">
+                                                    <button class="btn btn-link btn-sm p-0 align-baseline" type="submit">
+                                                        <?php echo htmlspecialchars($attachment['original_name'], ENT_QUOTES, 'UTF-8'); ?>
+                                                    </button>
+                                                </form>
+                                                <span class="badge <?php echo $attachment['status'] === 'submitted' ? 'bg-primary' : 'bg-secondary'; ?>">
+                                                    <?php echo htmlspecialchars(ucfirst($attachment['status']), ENT_QUOTES, 'UTF-8'); ?>
+                                                </span>
+                                            </li>
+                                        <?php endforeach; ?>
+                                    </ul>
+                                </div>
+                            <?php endif; ?>
+
+                            <form method="post" enctype="multipart/form-data" data-assignment-form>
                                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(student_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
-                                <input type="hidden" name="action" value="submit_assignment">
-                                <label class="form-label" for="assignmentResponse">Response</label>
-                                <textarea class="form-control mb-3" id="assignmentResponse" name="submission_content" rows="8" maxlength="20000" required><?php echo htmlspecialchars((string) ($_POST['submission_content'] ?? $assignment_submission['submission_content'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
-                                <button class="btn btn-primary" type="submit"><?php echo $assignment_submission ? 'Update submission' : 'Submit assignment'; ?></button>
+                                <input type="hidden" name="draft_version" value="<?php echo $draft_version; ?>" data-draft-version>
+                                <label class="form-label" for="assignmentResponse">Your response</label>
+                                <div class="assignment-toolbar mb-2" role="group" aria-label="Basic response formatting">
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-wrap-text="**" aria-label="Bold selected text"><strong>B</strong></button>
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-wrap-text="_" aria-label="Italicize selected text"><em>I</em></button>
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-wrap-text="`" aria-label="Mark selected text as code"><code>&lt;/&gt;</code></button>
+                                </div>
+                                <textarea class="form-control assignment-response-editor mb-2"
+                                          id="assignmentResponse"
+                                          name="submission_content"
+                                          rows="9"
+                                          maxlength="20000"
+                                          aria-describedby="assignmentWordCount assignmentDraftStatus assignmentResponseHelp"
+                                          data-assignment-response><?php echo htmlspecialchars($assignment_editor_content, ENT_QUOTES, 'UTF-8'); ?></textarea>
+                                <div class="d-flex flex-wrap justify-content-between gap-2 mb-3">
+                                    <small class="text-muted" id="assignmentResponseHelp">Plain text response, up to 20,000 characters.</small>
+                                    <small class="text-muted" id="assignmentWordCount" data-word-count aria-live="polite">0 words</small>
+                                </div>
+
+                                <div class="assignment-drop-zone mb-3" data-assignment-drop-zone>
+                                    <i class="fas fa-cloud-arrow-up fa-lg mb-2" aria-hidden="true"></i>
+                                    <label for="assignmentAttachments" class="form-label fw-semibold">Attach project files</label>
+                                    <p class="small text-muted mb-2">Drop files here or browse. ZIP, PDF, HTML, CSS, JavaScript, PNG, and JPEG; up to five files, <?php echo number_format(assignment_max_file_bytes() / 1024 / 1024, 1); ?> MB each and <?php echo number_format(assignment_max_total_upload_bytes() / 1024 / 1024, 1); ?> MB total.</p>
+                                    <input class="form-control" type="file" id="assignmentAttachments" name="attachments[]" multiple
+                                           accept=".zip,.pdf,.html,.htm,.css,.js,.png,.jpg,.jpeg"
+                                           data-max-file-bytes="<?php echo assignment_max_file_bytes(); ?>"
+                                           data-max-total-bytes="<?php echo assignment_max_total_upload_bytes(); ?>"
+                                           aria-describedby="assignmentFileList">
+                                    <ul class="small text-muted mt-2 mb-0" id="assignmentFileList" data-selected-files aria-live="polite"></ul>
+                                </div>
+
+                                <p class="small mb-3" id="assignmentDraftStatus" data-draft-status role="status" aria-live="polite">
+                                    <?php echo $assignment_submission && $assignment_submission['draft_content'] !== null ? 'Draft saved.' : 'Draft is not saved yet.'; ?>
+                                </p>
+
+                                <?php if ($assignment_submission && $assignment_submission['grade'] !== null): ?>
+                                    <div class="form-check mb-3">
+                                        <input class="form-check-input" type="checkbox" id="confirmResubmission" name="confirm_resubmission" value="1">
+                                        <label class="form-check-label" for="confirmResubmission">
+                                            I understand that submitting this response will replace my previous submission and remove its grade and feedback.
+                                        </label>
+                                    </div>
+                                <?php endif; ?>
+
+                                <div class="d-flex flex-wrap gap-2">
+                                    <button class="btn btn-outline-primary" type="submit" name="action" value="save_assignment_draft" data-save-draft>
+                                        <i class="fas fa-floppy-disk me-1" aria-hidden="true"></i>Save Draft
+                                    </button>
+                                    <button class="btn btn-primary" type="submit" name="action" value="submit_assignment" data-submit-assignment>
+                                        <i class="fas fa-paper-plane me-1" aria-hidden="true"></i><?php echo $assignment_submission && !empty($assignment_submission['submitted_at']) ? 'Submit Assignment Again' : 'Submit Assignment'; ?>
+                                    </button>
+                                </div>
                             </form>
                         </div>
                     </section>

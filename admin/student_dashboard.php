@@ -100,7 +100,8 @@ $upcoming_tasks_stmt = $mysqli->prepare(
          ON submission.lesson_id = l.lesson_id AND submission.enrollment_id = e.enrollment_id
      WHERE e.user_id = ?
        AND l.content_type IN (\'quiz\', \'assignment\')
-       AND submission.submission_id IS NULL
+       AND (submission.submission_id IS NULL OR submission.status <> \'submitted\'
+            OR submission.submitted_at IS NULL)
        AND NOT EXISTS (
            SELECT 1 FROM learning_quiz_attempts attempt
            WHERE attempt.lesson_id = l.lesson_id AND attempt.enrollment_id = e.enrollment_id

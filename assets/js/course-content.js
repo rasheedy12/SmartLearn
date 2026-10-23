@@ -1,4 +1,15 @@
 (() => {
+    const lessonForm = document.querySelector('form input[name="action"][value="add_lesson"]')?.closest('form');
+    const lessonType = lessonForm?.querySelector('select[name="content_type"]');
+    const deadlineField = lessonForm?.querySelector('[data-assignment-deadline]');
+    if (lessonType && deadlineField) {
+        const updateDeadlineVisibility = () => {
+            deadlineField.hidden = lessonType.value !== 'assignment';
+        };
+        lessonType.addEventListener('change', updateDeadlineVisibility);
+        updateDeadlineVisibility();
+    }
+
     document.querySelectorAll('form').forEach((form) => {
         const typeSelect = form.querySelector('select[name="question_type"]');
         if (!(typeSelect instanceof HTMLSelectElement)) {

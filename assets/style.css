@@ -255,3 +255,56 @@ button.action-processing::after {
     margin-inline-start: 0.5rem;
     color: #495057;
 }
+
+.assignment-panel {
+    border-color: #d9d2ee;
+}
+
+.assignment-instructions {
+    padding: 1rem;
+    border-left: 4px solid #6f42c1;
+    border-radius: 0.25rem;
+    background: rgba(111, 66, 193, 0.06);
+}
+
+.assignment-response-editor {
+    min-height: 14rem;
+    resize: vertical;
+    line-height: 1.65;
+}
+
+.assignment-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+
+.assignment-drop-zone {
+    padding: 1rem;
+    border: 2px dashed #adb5bd;
+    border-radius: 0.5rem;
+    text-align: center;
+    background: rgba(108, 117, 125, 0.04);
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.assignment-drop-zone.is-dragging {
+    border-color: #6f42c1;
+    background: rgba(111, 66, 193, 0.08);
+}
+
+.assignment-drop-zone input[type="file"] {
+    max-width: 42rem;
+    margin-inline: auto;
+    text-align: start;
+}
+
+@media (max-width: 575.98px) {
+    .assignment-panel .card-body {
+        padding: 1rem;
+    }
+
+    .assignment-panel .btn {
+        flex: 1 1 auto;
+    }
+}

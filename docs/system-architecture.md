@@ -101,7 +101,7 @@ The SQL schema contains these logical areas:
 | Identity and platform | `users`, `notifications`, `system_settings`, `subscribers`, `testimonials` |
 | Course catalog | `categories`, `courses`, `course_what_you_learn`, `modules`, `lessons` |
 | Enrollment and progress | `enrollments`, `lesson_progress`, `user_notes` |
-| Assessment | `learning_quiz_questions`, `learning_quiz_options`, `learning_quiz_attempts`, `learning_quiz_attempt_answers`, `learning_assignment_submissions` |
+| Assessment | `learning_quiz_questions`, `learning_quiz_options`, `learning_quiz_attempts`, `learning_quiz_attempt_answers`, `learning_assignment_submissions`, `learning_assignment_attachments` |
 | Commerce and feedback | `payments`, `course_payments`, `course_reviews` |
 | Community | `discussion_forums`, `discussion_threads`, `discussion_posts`, `study_groups`, `study_group_members`, `study_buddy_connections`, `study_buddy_groups`, `study_buddy_group_members` |
 | Gamification | `achievements`, `user_achievements` |
@@ -148,7 +148,7 @@ The SQL dump defines primary keys, unique indexes, and supporting indexes, but i
 
 ### Local development
 
-- PHP 7.4 or later with `mysqli`
+- PHP 8.0 or later with `mysqli`
 - PHP cURL extension enabled for Paystack and exchange-rate API requests
 - MySQL or MariaDB with the `Smartlearn` schema imported
 - Apache/Nginx with PHP, or PHP's built-in development server
@@ -161,11 +161,14 @@ The checked-in connection configuration currently targets local XAMPP MariaDB th
 - Apply `database/migrations/20261014_create_course_payments.sql` to existing databases. The updated `database/Smartlearn.sql` also includes the new table for fresh imports.
 - Apply `database/migrations/20261017_create_study_buddy_tables.sql` to existing databases to enable persistent buddy requests and study groups.
 - Apply `database/migrations/20261021_create_learning_activities.sql` to enable quiz authoring/attempts and assignment submissions/grading.
+- After that migration, apply `database/migrations/20261023_upgrade_learning_assignment_submissions.sql` to enable persistent drafts, assignment deadlines, and private attachment metadata. Existing submitted work is retained and receives the `submitted` status.
+- Assignment attachments are stored outside the public web root by default, at `../smartlearn-private/assignment-files` relative to the project directory. Set `SMARTLEARN_ASSIGNMENT_STORAGE_PATH` to an absolute private directory to override it. The directory must not be under the web document root.
+- `SMARTLEARN_ASSIGNMENT_MAX_FILE_BYTES` optionally sets the per-file limit in bytes (default 10 MiB, capped by PHP's `upload_max_filesize` and `post_max_size`). `SMARTLEARN_TIMEZONE` optionally sets the application timezone used for deadline entry and display; otherwise PHP's configured timezone is used. Configure PHP's `post_max_size` to accommodate the displayed aggregate limit when changing upload settings.
 - Configure the server environment variables `PAYSTACK_SECRET_KEY` and `PAYSTACK_CALLBACK_URL`. The callback URL must be the public HTTPS URL of `pages/paystack_callback.php`; use Paystack test credentials for testing and never expose the secret key to browser code.
 - Course prices are stored in USD. At checkout, the selected supported currency is converted using the current USD exchange rate from ExchangeRate-API; the converted amount and rate are stored with the pending payment.
 - Enrollment is granted only after the callback handler verifies the reference, amount, currency, and successful status directly with Paystack. Currency availability still depends on the merchant's Paystack account.
 - Instructors add YouTube watch URLs as video lessons. Enrolled students get the course playlist; only lessons explicitly marked previewable are available before enrollment.
-- Instructors create quiz questions and grade assignment submissions from course content management. Students submit quizzes and text assignment responses from the lesson page; activity results and review status appear in My Assignments.
+- Instructors create quiz questions, set optional assignment deadlines, and grade assignment submissions from course content management. Students can save response drafts, attach private project files, and submit from the lesson page; late submissions are accepted and identified from the stored submission and deadline timestamps. Student downloads require enrollment, and instructor downloads require course ownership.
 - Students earn 10 XP for each lesson marked complete. XP is derived from completed lesson progress; achievement badges are displayed separately.
 
 ### Production boundary
