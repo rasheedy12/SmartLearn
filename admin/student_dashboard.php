@@ -96,11 +96,15 @@ $upcoming_tasks_stmt = $mysqli->prepare(
      INNER JOIN courses c ON c.course_id = e.course_id
      INNER JOIN modules m ON m.course_id = c.course_id
      INNER JOIN lessons l ON l.module_id = m.module_id
-     LEFT JOIN lesson_progress lp
-         ON lp.lesson_id = l.lesson_id AND lp.enrollment_id = e.enrollment_id AND lp.is_completed = 1
+     LEFT JOIN learning_assignment_submissions submission
+         ON submission.lesson_id = l.lesson_id AND submission.enrollment_id = e.enrollment_id
      WHERE e.user_id = ?
        AND l.content_type IN (\'quiz\', \'assignment\')
-       AND lp.progress_id IS NULL
+       AND submission.submission_id IS NULL
+       AND NOT EXISTS (
+           SELECT 1 FROM learning_quiz_attempts attempt
+           WHERE attempt.lesson_id = l.lesson_id AND attempt.enrollment_id = e.enrollment_id
+       )
      ORDER BY c.title, m.order_index, l.order_index
      LIMIT 5'
 );
@@ -208,7 +212,7 @@ include BASE_URL . 'includes/dashboard_header.php';
                         <p class="text-muted text-center my-3"><?php echo $active_courses ? 'No incomplete quizzes or assignments in your courses.' : 'Enroll in a course to see its quizzes and assignments here.'; ?></p>
                     <?php else: ?>
                         <?php foreach ($upcoming_tasks as $task): ?>
-                            <a href="./my_courses.php#course-<?php echo (int) $task['course_id']; ?>" class="text-decoration-none text-dark">
+                            <a href="../pages/lesson_view.php?course_id=<?php echo (int) $task['course_id']; ?>&amp;lesson_id=<?php echo (int) $task['lesson_id']; ?>" class="text-decoration-none text-dark">
                                 <div class="task-item">
                                     <div class="icon-circle <?php echo $task['content_type'] === 'quiz' ? 'bg-warning text-dark' : 'bg-info text-white'; ?>"><i class="<?php echo $task['content_type'] === 'quiz' ? 'fas fa-file-alt' : 'fas fa-book-open'; ?>"></i></div>
                                     <div class="flex-grow-1">

@@ -11,13 +11,27 @@ if (!in_array($filter, ['all', 'pending', 'completed'], true)) {
 $stmt = $mysqli->prepare(
     'SELECT e.enrollment_id, c.course_id, c.title AS course_title,
             l.lesson_id, l.title, l.content_type,
-            CASE WHEN lp.is_completed = 1 THEN 1 ELSE 0 END AS is_completed
+            CASE
+                WHEN (l.content_type = \'assignment\' AND submission.submission_id IS NOT NULL)
+                  OR (l.content_type = \'quiz\' AND attempt.attempt_id IS NOT NULL)
+                THEN 1 ELSE 0
+            END AS is_completed,
+            submission.grade AS assignment_grade,
+            attempt.score AS quiz_score
      FROM enrollments e
      INNER JOIN courses c ON c.course_id = e.course_id
      INNER JOIN modules m ON m.course_id = c.course_id
      INNER JOIN lessons l ON l.module_id = m.module_id
-     LEFT JOIN lesson_progress lp
-         ON lp.lesson_id = l.lesson_id AND lp.enrollment_id = e.enrollment_id
+     LEFT JOIN learning_assignment_submissions submission
+         ON submission.lesson_id = l.lesson_id AND submission.enrollment_id = e.enrollment_id
+     LEFT JOIN learning_quiz_attempts attempt
+         ON attempt.attempt_id = (
+             SELECT latest.attempt_id
+             FROM learning_quiz_attempts latest
+             WHERE latest.lesson_id = l.lesson_id AND latest.enrollment_id = e.enrollment_id
+             ORDER BY latest.completed_at DESC, latest.attempt_id DESC
+             LIMIT 1
+         )
      WHERE e.user_id = ? AND l.content_type IN (\'quiz\', \'assignment\')
      ORDER BY is_completed, c.title, m.order_index, l.order_index'
 );
@@ -67,8 +81,18 @@ include BASE_URL . 'includes/dashboard_header.php';
                                     <td><?php echo htmlspecialchars($assignment['course_title'], ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td><?php echo htmlspecialchars($assignment['title'], ENT_QUOTES, 'UTF-8'); ?></td>
                                     <td><span class="badge bg-info text-dark"><?php echo ucfirst(htmlspecialchars($assignment['content_type'], ENT_QUOTES, 'UTF-8')); ?></span></td>
-                                    <td><span class="badge <?php echo $assignment['is_completed'] ? 'bg-success' : 'bg-warning text-dark'; ?>"><?php echo $assignment['is_completed'] ? 'Completed' : 'Not completed'; ?></span></td>
-                                    <td><a href="my_courses.php#course-<?php echo (int) $assignment['course_id']; ?>" class="btn btn-sm btn-outline-primary">View Course</a></td>
+                                    <td>
+                                        <?php if ($assignment['content_type'] === 'quiz' && $assignment['quiz_score'] !== null): ?>
+                                            <span class="badge bg-success">Latest score: <?php echo number_format((float) $assignment['quiz_score'], 1); ?>%</span>
+                                        <?php elseif ($assignment['content_type'] === 'assignment' && $assignment['assignment_grade'] !== null): ?>
+                                            <span class="badge bg-success">Graded: <?php echo number_format((float) $assignment['assignment_grade'], 1); ?>%</span>
+                                        <?php elseif ($assignment['is_completed']): ?>
+                                            <span class="badge bg-info text-dark">Submitted · awaiting review</span>
+                                        <?php else: ?>
+                                            <span class="badge bg-warning text-dark">Not started</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><a href="../pages/lesson_view.php?course_id=<?php echo (int) $assignment['course_id']; ?>&amp;lesson_id=<?php echo (int) $assignment['lesson_id']; ?>" class="btn btn-sm btn-outline-primary"><?php echo $assignment['is_completed'] ? 'View activity' : 'Start activity'; ?></a></td>
                                 </tr>
                             <?php endforeach; ?>
                         </tbody>

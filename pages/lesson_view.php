@@ -12,6 +12,9 @@ $lesson = null;
 $enrollment = null;
 $is_enrolled = false;
 $playlist = [];
+$quiz_questions = [];
+$latest_quiz_attempt = null;
+$assignment_submission = null;
 $transaction_started = false;
 
 try {
@@ -58,6 +61,59 @@ try {
         $playlist_stmt->bind_param('ii', $enrollment_id, $course_id);
         $playlist_stmt->execute();
         $playlist = $playlist_stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+
+        if ($lesson['content_type'] === 'quiz' && $is_enrolled) {
+            $questions_stmt = $mysqli->prepare(
+                'SELECT q.question_id, q.question_text, q.question_type,
+                        o.option_id, o.option_text, o.is_correct
+                 FROM learning_quiz_questions q
+                 LEFT JOIN learning_quiz_options o ON o.question_id = q.question_id
+                 WHERE q.lesson_id = ?
+                 ORDER BY q.order_index, q.question_id, o.option_id'
+            );
+            $questions_stmt->bind_param('i', $lesson_id);
+            $questions_stmt->execute();
+            foreach ($questions_stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $row) {
+                $question_id = (int) $row['question_id'];
+                if (!isset($quiz_questions[$question_id])) {
+                    $quiz_questions[$question_id] = [
+                        'question_id' => $question_id,
+                        'question_text' => $row['question_text'],
+                        'question_type' => $row['question_type'],
+                        'options' => [],
+                    ];
+                }
+                if ($row['option_id'] !== null) {
+                    $quiz_questions[$question_id]['options'][] = [
+                        'option_id' => (int) $row['option_id'],
+                        'option_text' => $row['option_text'],
+                        'is_correct' => (int) $row['is_correct'] === 1,
+                    ];
+                }
+            }
+            $questions_stmt->close();
+
+            $attempt_stmt = $mysqli->prepare(
+                'SELECT score, completed_at
+                 FROM learning_quiz_attempts
+                 WHERE enrollment_id = ? AND lesson_id = ?
+                 ORDER BY completed_at DESC, attempt_id DESC LIMIT 1'
+            );
+            $attempt_stmt->bind_param('ii', $enrollment['enrollment_id'], $lesson_id);
+            $attempt_stmt->execute();
+            $latest_quiz_attempt = $attempt_stmt->get_result()->fetch_assoc();
+            $attempt_stmt->close();
+        } elseif ($lesson['content_type'] === 'assignment' && $is_enrolled) {
+            $submission_stmt = $mysqli->prepare(
+                'SELECT submission_content, submitted_at, grade, instructor_feedback, graded_at
+                 FROM learning_assignment_submissions
+                 WHERE enrollment_id = ? AND lesson_id = ? LIMIT 1'
+            );
+            $submission_stmt->bind_param('ii', $enrollment['enrollment_id'], $lesson_id);
+            $submission_stmt->execute();
+            $assignment_submission = $submission_stmt->get_result()->fetch_assoc();
+            $submission_stmt->close();
+        }
     }
 } catch (Throwable $exception) {
     error_log('Course lesson could not be loaded: ' . $exception->getMessage());
@@ -75,40 +131,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && $lesson) {
         try {
             $mysqli->begin_transaction();
             $transaction_started = true;
-            $progress_stmt = $mysqli->prepare(
-                'INSERT INTO lesson_progress (enrollment_id, lesson_id, is_completed, completed_at)
-                 VALUES (?, ?, 1, NOW())
-                 ON DUPLICATE KEY UPDATE is_completed = 1, completed_at = NOW()'
-            );
-            $progress_stmt->bind_param('ii', $enrollment['enrollment_id'], $lesson_id);
-            $progress_stmt->execute();
-
-            $totals_stmt = $mysqli->prepare(
-                'SELECT COUNT(l.lesson_id) AS lesson_count,
-                        COUNT(CASE WHEN lp.is_completed = 1 THEN l.lesson_id END) AS completed_count
-                 FROM modules m
-                 JOIN lessons l ON l.module_id = m.module_id
-                 LEFT JOIN lesson_progress lp ON lp.lesson_id = l.lesson_id AND lp.enrollment_id = ?
-                 WHERE m.course_id = ?'
-            );
-            $totals_stmt->bind_param('ii', $enrollment['enrollment_id'], $course_id);
-            $totals_stmt->execute();
-            $totals = $totals_stmt->get_result()->fetch_assoc();
-            $lesson_total = (int) $totals['lesson_count'];
-            $completed_total = (int) $totals['completed_count'];
-            $progress_percentage = $lesson_total > 0
-                ? (int) round($completed_total * 100 / $lesson_total)
-                : 0;
-            $is_course_complete = $lesson_total > 0 && $completed_total >= $lesson_total ? 1 : 0;
-
-            $enrollment_update = $mysqli->prepare(
-                'UPDATE enrollments
-                 SET progress_percentage = ?,
-                     completed_at = IF(? = 1, COALESCE(completed_at, NOW()), NULL)
-                 WHERE enrollment_id = ?'
-            );
-            $enrollment_update->bind_param('iii', $progress_percentage, $is_course_complete, $enrollment['enrollment_id']);
-            $enrollment_update->execute();
+            student_record_lesson_completion($mysqli, (int) $enrollment['enrollment_id'], $lesson_id, $course_id);
             $mysqli->commit();
             $transaction_started = false;
             header('Location: lesson_view.php?course_id=' . $course_id . '&lesson_id=' . $lesson_id . '&completed=1');
@@ -119,6 +142,126 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST' && $lesson) {
             }
             error_log('Lesson completion could not be saved: ' . $exception->getMessage());
             $error_message = 'Your lesson progress could not be saved. Please try again.';
+        }
+    } elseif (($_POST['action'] ?? '') === 'submit_assignment' && $lesson['content_type'] === 'assignment') {
+        $submission_content = trim((string) ($_POST['submission_content'] ?? ''));
+        if ($submission_content === '' || mb_strlen($submission_content) > 20000) {
+            $error_message = 'Enter an assignment response of 1 to 20,000 characters.';
+        } else {
+            try {
+                $mysqli->begin_transaction();
+                $transaction_started = true;
+                $submission_stmt = $mysqli->prepare(
+                    'INSERT INTO learning_assignment_submissions
+                        (enrollment_id, lesson_id, submission_content, submitted_at)
+                     VALUES (?, ?, ?, NOW())
+                     ON DUPLICATE KEY UPDATE
+                        submission_content = VALUES(submission_content),
+                        submitted_at = NOW(),
+                        grade = NULL,
+                        instructor_feedback = NULL,
+                        graded_at = NULL'
+                );
+                $submission_stmt->bind_param('iis', $enrollment['enrollment_id'], $lesson_id, $submission_content);
+                $submission_stmt->execute();
+                $submission_stmt->close();
+                student_record_lesson_completion($mysqli, (int) $enrollment['enrollment_id'], $lesson_id, $course_id);
+                $mysqli->commit();
+                $transaction_started = false;
+                header('Location: lesson_view.php?course_id=' . $course_id . '&lesson_id=' . $lesson_id . '&assignment_submitted=1');
+                exit;
+            } catch (Throwable $exception) {
+                if ($transaction_started) {
+                    $mysqli->rollback();
+                }
+                error_log('Assignment submission could not be saved: ' . $exception->getMessage());
+                $error_message = 'Your assignment could not be submitted. Please try again.';
+            }
+        }
+    } elseif (($_POST['action'] ?? '') === 'submit_quiz' && $lesson['content_type'] === 'quiz') {
+        $posted_answers = $_POST['answers'] ?? [];
+        $validated_answers = [];
+        $correct_count = 0;
+        $answer_error = '';
+
+        if ($quiz_questions === []) {
+            $answer_error = 'This quiz is not ready yet because it has no questions.';
+        } elseif (!is_array($posted_answers) || count($posted_answers) !== count($quiz_questions)) {
+            $answer_error = 'Answer every question before submitting the quiz.';
+        } else {
+            foreach ($quiz_questions as $question_id => $question) {
+                $selected = $posted_answers[$question_id] ?? null;
+                $selected_ids = is_array($selected) ? $selected : [$selected];
+                $selected_ids = array_values(array_unique(array_filter(
+                    array_map(static fn($id) => filter_var($id, FILTER_VALIDATE_INT), $selected_ids),
+                    static fn($id) => $id !== false && $id > 0
+                )));
+                $valid_option_ids = array_column($question['options'], 'option_id');
+                if (
+                    $selected_ids === []
+                    || count(array_diff($selected_ids, $valid_option_ids)) > 0
+                    || ($question['question_type'] !== 'multiple_choice' && count($selected_ids) !== 1)
+                ) {
+                    $answer_error = 'Choose a valid answer for every question.';
+                    break;
+                }
+
+                $correct_ids = array_column(
+                    array_filter($question['options'], static fn($option) => $option['is_correct']),
+                    'option_id'
+                );
+                sort($selected_ids);
+                sort($correct_ids);
+                $is_correct = $selected_ids === $correct_ids;
+                $correct_count += $is_correct ? 1 : 0;
+                $validated_answers[$question_id] = [
+                    'selected_ids' => $selected_ids,
+                    'is_correct' => $is_correct,
+                ];
+            }
+        }
+
+        if ($answer_error !== '') {
+            $error_message = $answer_error;
+        } else {
+            $score = round($correct_count * 100 / count($quiz_questions), 2);
+            try {
+                $mysqli->begin_transaction();
+                $transaction_started = true;
+                $attempt_stmt = $mysqli->prepare(
+                    'INSERT INTO learning_quiz_attempts (enrollment_id, lesson_id, score)
+                     VALUES (?, ?, ?)'
+                );
+                $attempt_stmt->bind_param('iid', $enrollment['enrollment_id'], $lesson_id, $score);
+                $attempt_stmt->execute();
+                $attempt_id = (int) $attempt_stmt->insert_id;
+                $attempt_stmt->close();
+
+                $answer_stmt = $mysqli->prepare(
+                    'INSERT INTO learning_quiz_attempt_answers
+                        (attempt_id, question_id, option_id, is_correct)
+                     VALUES (?, ?, ?, ?)'
+                );
+                foreach ($validated_answers as $question_id => $answer) {
+                    foreach ($answer['selected_ids'] as $option_id) {
+                        $is_correct = $answer['is_correct'] ? 1 : 0;
+                        $answer_stmt->bind_param('iiii', $attempt_id, $question_id, $option_id, $is_correct);
+                        $answer_stmt->execute();
+                    }
+                }
+                $answer_stmt->close();
+                student_record_lesson_completion($mysqli, (int) $enrollment['enrollment_id'], $lesson_id, $course_id);
+                $mysqli->commit();
+                $transaction_started = false;
+                header('Location: lesson_view.php?course_id=' . $course_id . '&lesson_id=' . $lesson_id . '&quiz_submitted=1');
+                exit;
+            } catch (Throwable $exception) {
+                if ($transaction_started) {
+                    $mysqli->rollback();
+                }
+                error_log('Quiz attempt could not be saved: ' . $exception->getMessage());
+                $error_message = 'Your quiz could not be submitted. Please try again.';
+            }
         }
     }
 }
@@ -152,6 +295,14 @@ include __DIR__ . '/../includes/dashboard_header.php';
         <?php endif; ?>
         <?php if (isset($_GET['completed']) && $_GET['completed'] === '1'): ?>
             <div class="alert alert-success" role="status">Lesson marked complete. Your progress has been updated.</div>
+        <?php endif; ?>
+        <?php if (isset($_GET['assignment_submitted']) && $_GET['assignment_submitted'] === '1'): ?>
+            <div class="alert alert-success" role="status">Assignment submitted successfully. Your instructor will review it.</div>
+        <?php endif; ?>
+        <?php if (isset($_GET['quiz_submitted']) && $_GET['quiz_submitted'] === '1' && $latest_quiz_attempt): ?>
+            <div class="alert alert-success" role="status">
+                Quiz submitted. Your score is <?php echo number_format((float) $latest_quiz_attempt['score'], 2); ?>%.
+            </div>
         <?php endif; ?>
         <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
             <div>
@@ -199,8 +350,82 @@ include __DIR__ . '/../includes/dashboard_header.php';
                 <?php if (!empty($lesson['text_content']) && $lesson['content_type'] !== 'text'): ?>
                     <section class="card mb-3">
                         <div class="card-body">
-                            <h2 class="h5">Lesson notes</h2>
+                            <h2 class="h5"><?php echo $lesson['content_type'] === 'assignment' ? 'Assignment instructions' : ($lesson['content_type'] === 'quiz' ? 'Quiz instructions' : 'Lesson notes'); ?></h2>
                             <?php echo nl2br(htmlspecialchars($lesson['text_content'], ENT_QUOTES, 'UTF-8')); ?>
+                        </div>
+                    </section>
+                <?php endif; ?>
+
+                <?php if ($lesson['content_type'] === 'assignment' && $is_enrolled): ?>
+                    <section class="card mb-3">
+                        <div class="card-header"><h2 class="h5 mb-0">Your assignment response</h2></div>
+                        <div class="card-body">
+                            <?php if ($assignment_submission): ?>
+                                <p class="small text-muted">Last submitted <?php echo htmlspecialchars(date('M j, Y g:i a', strtotime($assignment_submission['submitted_at'])), ENT_QUOTES, 'UTF-8'); ?></p>
+                                <?php if ($assignment_submission['grade'] !== null): ?>
+                                    <div class="alert alert-info">
+                                        <strong>Grade:</strong> <?php echo number_format((float) $assignment_submission['grade'], 2); ?>%
+                                        <?php if (!empty($assignment_submission['instructor_feedback'])): ?>
+                                            <div class="mt-2"><?php echo nl2br(htmlspecialchars($assignment_submission['instructor_feedback'], ENT_QUOTES, 'UTF-8')); ?></div>
+                                        <?php endif; ?>
+                                    </div>
+                                <?php else: ?>
+                                    <p class="text-muted">Your submission is awaiting instructor review.</p>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                            <form method="post">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(student_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+                                <input type="hidden" name="action" value="submit_assignment">
+                                <label class="form-label" for="assignmentResponse">Response</label>
+                                <textarea class="form-control mb-3" id="assignmentResponse" name="submission_content" rows="8" maxlength="20000" required><?php echo htmlspecialchars((string) ($_POST['submission_content'] ?? $assignment_submission['submission_content'] ?? ''), ENT_QUOTES, 'UTF-8'); ?></textarea>
+                                <button class="btn btn-primary" type="submit"><?php echo $assignment_submission ? 'Update submission' : 'Submit assignment'; ?></button>
+                            </form>
+                        </div>
+                    </section>
+                <?php elseif ($lesson['content_type'] === 'quiz' && $is_enrolled): ?>
+                    <section class="card mb-3">
+                        <div class="card-header"><h2 class="h5 mb-0">Quiz</h2></div>
+                        <div class="card-body">
+                            <?php if ($latest_quiz_attempt): ?>
+                                <p class="text-muted">Latest score: <strong><?php echo number_format((float) $latest_quiz_attempt['score'], 2); ?>%</strong>. You may retake this quiz.</p>
+                            <?php endif; ?>
+                            <?php if (!$quiz_questions): ?>
+                                <p class="text-muted mb-0">Your instructor has not added quiz questions yet.</p>
+                            <?php else: ?>
+                                <form method="post">
+                                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(student_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
+                                    <input type="hidden" name="action" value="submit_quiz">
+                                    <?php foreach ($quiz_questions as $question): ?>
+                                        <fieldset class="mb-4">
+                                            <legend class="h6"><?php echo htmlspecialchars($question['question_text'], ENT_QUOTES, 'UTF-8'); ?></legend>
+                                            <?php foreach ($question['options'] as $option): ?>
+                                                <?php
+                                                $multiple = $question['question_type'] === 'multiple_choice';
+                                                $input_name = 'answers[' . $question['question_id'] . ']' . ($multiple ? '[]' : '');
+                                                $input_id = 'answer-' . $question['question_id'] . '-' . $option['option_id'];
+                                                ?>
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="<?php echo $multiple ? 'checkbox' : 'radio'; ?>"
+                                                           name="<?php echo htmlspecialchars($input_name, ENT_QUOTES, 'UTF-8'); ?>"
+                                                           id="<?php echo $input_id; ?>"
+                                                           value="<?php echo $option['option_id']; ?>"
+                                                           <?php echo !$multiple ? 'required' : ''; ?>
+                                                           <?php
+                                                           $posted = $_POST['answers'][$question['question_id']] ?? [];
+                                                           $posted = is_array($posted) ? $posted : [$posted];
+                                                           echo in_array((string) $option['option_id'], array_map('strval', $posted), true) ? 'checked' : '';
+                                                           ?>>
+                                                    <label class="form-check-label" for="<?php echo $input_id; ?>"><?php echo htmlspecialchars($option['option_text'], ENT_QUOTES, 'UTF-8'); ?></label>
+                                                </div>
+                                            <?php endforeach; ?>
+                                            <?php if ($question['question_type'] === 'multiple_choice'): ?>
+                                                <small class="form-text text-muted">Select all correct answers.</small>
+                                            <?php endif; ?>
+                                        </fieldset>
+                                    <?php endforeach; ?>
+                                    <button class="btn btn-primary" type="submit">Submit quiz</button>
+                                </form>
+                            <?php endif; ?>
                         </div>
                     </section>
                 <?php endif; ?>
@@ -216,7 +441,7 @@ include __DIR__ . '/../includes/dashboard_header.php';
                             <i class="fas fa-chevron-left me-1"></i>Previous
                         </a>
                     <?php else: ?><span></span><?php endif; ?>
-                    <?php if ($is_enrolled): ?>
+                    <?php if ($is_enrolled && !in_array($lesson['content_type'], ['quiz', 'assignment'], true)): ?>
                         <form method="post">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars(student_csrf_token(), ENT_QUOTES, 'UTF-8'); ?>">
                             <input type="hidden" name="action" value="complete_lesson">

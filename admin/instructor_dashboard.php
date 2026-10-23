@@ -60,8 +60,8 @@ $activity = [];
 $quiz_stmt = $mysqli->prepare(
     'SELECT CONCAT(u.first_name, \' \', u.last_name) AS student_name,
             c.title AS course_title, qa.completed_at AS happened_at
-     FROM quiz_attempts qa
-     INNER JOIN lessons l ON l.lesson_id = qa.quiz_lesson_id
+     FROM learning_quiz_attempts qa
+     INNER JOIN lessons l ON l.lesson_id = qa.lesson_id
      INNER JOIN modules m ON m.module_id = l.module_id
      INNER JOIN courses c ON c.course_id = m.course_id
      INNER JOIN enrollments e ON e.enrollment_id = qa.enrollment_id
