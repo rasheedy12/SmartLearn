@@ -27,9 +27,9 @@ $revenue_change = null;
 try {
     $revenue_stmt = $mysqli->prepare(
         'SELECT
-            COALESCE(SUM(CASE WHEN DATE_FORMAT(created_at, \'%Y-%m\') = ? THEN amount END), 0) AS this_month,
-            COALESCE(SUM(CASE WHEN DATE_FORMAT(created_at, \'%Y-%m\') = ? THEN amount END), 0) AS last_month
-         FROM payments
+            COALESCE(SUM(CASE WHEN DATE_FORMAT(created_at, \'%Y-%m\') = ? THEN base_amount_usd END), 0) AS this_month,
+            COALESCE(SUM(CASE WHEN DATE_FORMAT(created_at, \'%Y-%m\') = ? THEN base_amount_usd END), 0) AS last_month
+         FROM course_payments
          WHERE payment_status = \'completed\''
     );
     $revenue_stmt->bind_param('ss', $current_month, $previous_month);
@@ -105,9 +105,9 @@ if ($revenue_available) {
     try {
         $payment_activity = $mysqli->query(
             'SELECT \'Payment Completed\' AS activity_type,
-                    CONCAT(\'Payment of $\', FORMAT(p.amount, 2), \' received for "\', c.title, \'".\') AS description,
+                    CONCAT(\'Payment of \', p.currency, \' \', FORMAT(p.amount, 2), \' received for "\', c.title, \'".\') AS description,
                     p.created_at AS occurred_at
-             FROM payments p
+             FROM course_payments p
              INNER JOIN courses c ON c.course_id = p.course_id
              WHERE p.payment_status = \'completed\'
              ORDER BY p.created_at DESC
@@ -126,7 +126,6 @@ usort($activity, function ($left, $right) {
 });
 $activity = array_slice($activity, 0, $activity_limit);
 
-$database_connected = $mysqli->ping();
 $chart_data = [
     'userGrowth' => [
         'labels' => $growth_values,
@@ -184,7 +183,7 @@ include BASE_URL . 'includes/dashboard_header.php';
 
     <h2 class="h4 mb-3 mt-4">Platform Overview</h2>
     <div class="row">
-        <div class="col-xl-3 col-md-6 mb-4">
+        <div class="col-xl-4 col-md-6 mb-4">
             <a class="text-decoration-none text-reset" href="./user_management.php">
                 <div class="stat-card h-100">
                     <div class="d-flex justify-content-between align-items-center"><h3 class="h6">Total Users</h3><i class="fas fa-users icon-lg text-primary"></i></div>
@@ -193,7 +192,7 @@ include BASE_URL . 'includes/dashboard_header.php';
                 </div>
             </a>
         </div>
-        <div class="col-xl-3 col-md-6 mb-4">
+        <div class="col-xl-4 col-md-6 mb-4">
             <a class="text-decoration-none text-reset" href="./course_management.php">
                 <div class="stat-card h-100">
                     <div class="d-flex justify-content-between align-items-center"><h3 class="h6">Active Courses</h3><i class="fas fa-book-open icon-lg text-info"></i></div>
@@ -202,7 +201,7 @@ include BASE_URL . 'includes/dashboard_header.php';
                 </div>
             </a>
         </div>
-        <div class="col-xl-3 col-md-6 mb-4">
+        <div class="col-xl-4 col-md-6 mb-4">
             <a class="text-decoration-none text-reset" href="./reports.php">
                 <div class="stat-card h-100">
                     <div class="d-flex justify-content-between align-items-center"><h3 class="h6">Monthly Revenue</h3><i class="fas fa-dollar-sign icon-lg text-success"></i></div>
@@ -215,13 +214,6 @@ include BASE_URL . 'includes/dashboard_header.php';
                     </div>
                 </div>
             </a>
-        </div>
-        <div class="col-xl-3 col-md-6 mb-4">
-            <div class="stat-card h-100">
-                <div class="d-flex justify-content-between align-items-center"><h3 class="h6">Database Connection</h3><i class="fas fa-heartbeat icon-lg <?php echo $database_connected ? 'text-success' : 'text-danger'; ?>"></i></div>
-                <div class="stat-value fs-4"><?php echo $database_connected ? 'Connected' : 'Unavailable'; ?></div>
-                <div class="stat-meta">Live connection check; this is not an uptime monitor</div>
-            </div>
         </div>
     </div>
 
