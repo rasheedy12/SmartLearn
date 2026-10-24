@@ -10,45 +10,45 @@
                 <div id="smartLearnHeroCarousel" class="carousel slide hero-carousel" data-bs-ride="carousel" data-bs-interval="5000" data-bs-pause="hover">
                     <div class="carousel-indicators">
                         <button type="button" data-bs-target="#smartLearnHeroCarousel" data-bs-slide-to="0" class="active"
-                                aria-current="true" aria-label="Student dashboard"></button>
+                                aria-current="true" aria-label="Students learning together"></button>
                         <button type="button" data-bs-target="#smartLearnHeroCarousel" data-bs-slide-to="1"
-                                aria-label="Artificial intelligence course"></button>
+                                aria-label="Digital learning at home"></button>
                         <button type="button" data-bs-target="#smartLearnHeroCarousel" data-bs-slide-to="2"
-                                aria-label="Python course"></button>
+                                aria-label="Hands-on coding practice"></button>
                         <button type="button" data-bs-target="#smartLearnHeroCarousel" data-bs-slide-to="3"
-                                aria-label="Graphic design course"></button>
+                                aria-label="Classroom learning"></button>
                     </div>
                     <div class="carousel-inner">
                         <div class="carousel-item active">
-                            <img src="<?php echo BASE_URL; ?>assets/images/Student-dash.png"
-                                 class="d-block w-100" alt="SmartLearn student dashboard showing course progress">
+                            <img src="<?php echo BASE_URL; ?>assets/images/hero-learning-team.jpg"
+                                 class="d-block w-100" alt="Students collaborating on a digital learning project">
                             <div class="hero-slide-caption">
-                                <span class="hero-slide-label">YOUR LEARNING, AT A GLANCE</span>
-                                <h2 class="h5 mb-0">Track progress and keep moving forward</h2>
+                                <span class="hero-slide-label">LEARN BETTER TOGETHER</span>
+                                <h2 class="h5 mb-0">Share ideas and grow your skills with a learning community</h2>
                             </div>
                         </div>
                         <div class="carousel-item">
-                            <img src="<?php echo BASE_URL; ?>assets/images/ai.jpg"
-                                 class="d-block w-100" alt="Introduction to artificial intelligence course">
+                            <img src="<?php echo BASE_URL; ?>assets/images/hero-digital-learning.jpg"
+                                 class="d-block w-100" alt="A learner studying online with a laptop at home">
                             <div class="hero-slide-caption">
-                                <span class="hero-slide-label">EXPLORE NEW SUBJECTS</span>
-                                <h2 class="h5 mb-0">Build practical skills for what’s next</h2>
+                                <span class="hero-slide-label">LEARN ON YOUR SCHEDULE</span>
+                                <h2 class="h5 mb-0">Build new skills wherever inspiration finds you</h2>
                             </div>
                         </div>
                         <div class="carousel-item">
-                            <img src="<?php echo BASE_URL; ?>assets/images/py.jpeg"
-                                 class="d-block w-100" alt="Python for data science course">
+                            <img src="<?php echo BASE_URL; ?>assets/images/hero-coding.jpg"
+                                 class="d-block w-100" alt="Learner practicing coding on a laptop">
                             <div class="hero-slide-caption">
-                                <span class="hero-slide-label">LEARN BY DOING</span>
-                                <h2 class="h5 mb-0">Turn curiosity into real-world knowledge</h2>
+                                <span class="hero-slide-label">PRACTICE WITH PURPOSE</span>
+                                <h2 class="h5 mb-0">Turn what you learn into skills you can put to work</h2>
                             </div>
                         </div>
                         <div class="carousel-item">
-                            <img src="<?php echo BASE_URL; ?>assets/images/gd.jpeg"
-                                 class="d-block w-100" alt="Graphic design masterclass">
+                            <img src="<?php echo BASE_URL; ?>assets/images/hero-classroom.jpg"
+                                 class="d-block w-100" alt="Students learning together in a classroom">
                             <div class="hero-slide-caption">
-                                <span class="hero-slide-label">FIND YOUR NEXT COURSE</span>
-                                <h2 class="h5 mb-0">Discover a learning path that inspires you</h2>
+                                <span class="hero-slide-label">YOUR NEXT CHAPTER STARTS HERE</span>
+                                <h2 class="h5 mb-0">Explore new ideas and keep moving forward</h2>
                             </div>
                         </div>
                     </div>
