@@ -1,23 +1,23 @@
-
-<!DOCTYPE html>
+<?php
+$current_page = basename($_SERVER['PHP_SELF']);
+$is_auth_page = in_array($current_page, ['login.php', 'register.php'], true);
+include_once __DIR__ . '/theme_toggle.php';
+?><!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo isset($page_title) ? htmlspecialchars($page_title) . ' - SmartLearn' : 'SmartLearn - Stay Engaged, Learn Smarter'; ?></title>
+    <?php include __DIR__ . '/theme_head.php'; ?>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/style.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/theme.css">
 </head>
 <body>
-    <?php
-    $current_page = basename($_SERVER['PHP_SELF']);
-    $is_auth_page = in_array($current_page, ['login.php', 'register.php']);
-    ?>
-
     <?php if (!$is_auth_page): ?>
     <?php
         $current_dir = rtrim(dirname($_SERVER['PHP_SELF']), '/');
@@ -50,6 +50,9 @@
                     <li class="nav-item">
                         <a class="nav-link" href="<?php echo $home_url; ?>#testimonials">Testimonials</a>
                     </li>
+                    <li class="nav-item ms-lg-2">
+                        <?php smartlearn_theme_toggle(); ?>
+                    </li>
                     <?php
                     // Conceptual: Check if user is logged in (replace with actual session check)
                     // if (isset($_SESSION['user_id'])) {
@@ -65,4 +68,8 @@
             </div>
         </div>
     </nav>
+    <?php else: ?>
+        <div class="auth-theme-control">
+            <?php smartlearn_theme_toggle(); ?>
+        </div>
     <?php endif; ?>

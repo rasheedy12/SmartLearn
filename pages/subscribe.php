@@ -91,35 +91,43 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
 }
-?>
-
-<!DOCTYPE html>
+include_once __DIR__ . '/../includes/theme_toggle.php';
+?><!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Newsletter Subscription - SmartLearn</title>
+    <?php include __DIR__ . '/../includes/theme_head.php'; ?>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/style.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL; ?>assets/theme.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         .subscription-form {
             max-width: 600px;
             margin: 2rem auto;
             padding: 2rem;
-            background: white;
+            background: var(--sl-surface);
             border-radius: 10px;
             box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            color: var(--sl-text);
         }
         .preference-item {
             margin-bottom: 0.5rem;
         }
         .form-check-input:checked {
-            background-color: #0d6efd;
-            border-color: #0d6efd;
+            background-color: var(--sl-primary);
+            border-color: var(--sl-primary);
         }
     </style>
 </head>
 <body class="bg-light">
+    <div class="standalone-theme-control">
+        <?php smartlearn_theme_toggle(); ?>
+    </div>
     <div class="container">
         <div class="subscription-form">
             <h2 class="text-center mb-4">Subscribe to Our Newsletter</h2>
@@ -166,6 +174,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
     </div>
 
+    <script src="<?php echo BASE_URL; ?>assets/js/theme.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Form validation

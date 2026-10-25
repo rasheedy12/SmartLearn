@@ -30,19 +30,19 @@
         <div class="row mt-5 text-center">
             <div class="col-md-4 mb-3">
                 <div class="p-3">
-                    <h3 class="fw-bold display-5" style="color: #6f42c1;">92%</h3>
+                    <h3 class="fw-bold display-5 metric-accent-primary">92%</h3>
                     <p class="text-muted fs-5">Increased Engagement</p>
                 </div>
             </div>
             <div class="col-md-4 mb-3">
                 <div class="p-3">
-                    <h3 class="fw-bold display-5" style="color: #198754;">85%</h3>
+                    <h3 class="fw-bold display-5 metric-accent-success">85%</h3>
                     <p class="text-muted fs-5">Improved Grades</p>
                 </div>
             </div>
             <div class="col-md-4 mb-3">
                 <div class="p-3">
-                    <h3 class="fw-bold display-5" style="color: #fd7e14;">95%</h3>
+                    <h3 class="fw-bold display-5 metric-accent-warning">95%</h3>
                     <p class="text-muted fs-5">User Satisfaction</p>
                 </div>
             </div>

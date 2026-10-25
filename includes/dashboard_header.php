@@ -3,6 +3,7 @@
 if (session_status() == PHP_SESSION_NONE) { // Start session if not already started
     session_start();
 }
+include_once __DIR__ . '/theme_toggle.php';
 
 define('BASE_URL_INC', file_exists(dirname(__FILE__) . '/../index.php') ? '../' : './'); // Determine the correct project root from the current include location
 
@@ -41,19 +42,20 @@ $is_pages_dir = $current_dir === '/pages' || $current_dir === 'pages';
 $profile_url = $is_admin_dir ? 'profile.php' : ($is_pages_dir ? '../admin/profile.php' : 'admin/profile.php');
 $logout_url = ($is_admin_dir || $is_pages_dir) ? '../auth/handle_logout.php' : 'auth/handle_logout.php';
 
-?>
-<!DOCTYPE html>
+?><!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo $page_title_auto; ?> - SmartLearn Dashboard</title>
+    <?php include __DIR__ . '/theme_head.php'; ?>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?php echo BASE_URL_INC; ?>assets/style.css">
+    <link rel="stylesheet" href="<?php echo BASE_URL_INC; ?>assets/theme.css">
     <?php if (isset($extra_css) && is_array($extra_css)): foreach ($extra_css as $css_file): ?>
         <link rel="stylesheet" href="<?php echo $css_file; ?>">
     <?php endforeach; endif; ?>
@@ -76,6 +78,9 @@ $logout_url = ($is_admin_dir || $is_pages_dir) ? '../auth/handle_logout.php' : '
                     </form>
 
                     <ul class="navbar-nav align-items-center">
+                        <li class="nav-item me-2">
+                            <?php smartlearn_theme_toggle(); ?>
+                        </li>
                         <li class="nav-item">
                             <a class="nav-link" href="#" title="Notifications">
                                 <i class="fas fa-bell fs-5"></i>

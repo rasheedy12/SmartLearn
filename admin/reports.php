@@ -197,6 +197,5 @@ include BASE_URL . 'includes/dashboard_header.php';
 </div>
 <script>const chartData = <?php echo json_encode($chart_data, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT); ?>;</script>
 <?php
-$extra_js = [BASE_URL . 'assets/js/dashboard_charts.js'];
 include BASE_URL . 'includes/dashboard_footer.php';
 ?>

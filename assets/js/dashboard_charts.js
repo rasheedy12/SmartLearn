@@ -10,6 +10,41 @@ document.addEventListener('DOMContentLoaded', function () {
         return;
     }
 
+    let userGrowthChartInstance, learningActivityChartInstance, revenueChartInstance, userDemographicsChartInstance, studentEngagementChartInstance;
+
+    function applyChartTheme(charts = []) {
+        const styles = getComputedStyle(document.documentElement);
+        const textColor = styles.getPropertyValue('--sl-text-muted').trim();
+        const borderColor = styles.getPropertyValue('--sl-border').trim();
+        const accentColor = styles.getPropertyValue('--sl-chart-accent').trim();
+        const successColor = styles.getPropertyValue('--sl-chart-success').trim();
+        const accentRgb = styles.getPropertyValue('--sl-primary-rgb').trim();
+        const successRgb = styles.getPropertyValue('--sl-chart-success-rgb').trim();
+        Chart.defaults.color = textColor;
+        Chart.defaults.borderColor = borderColor;
+        Chart.defaults.font.family = "'Inter', sans-serif";
+
+        charts.forEach((chart) => {
+            const isCategoricalChart = chart.canvas.id === 'userDemographicsChart';
+            if (!isCategoricalChart) {
+                chart.data.datasets.forEach((dataset, index) => {
+                    const color = (chart.canvas.id === 'userGrowthChart' || chart.canvas.id === 'studentEngagementChart')
+                        && index > 0
+                        ? successColor
+                        : accentColor;
+                    dataset.borderColor = color;
+                    const fillRgb = color === successColor ? successRgb : accentRgb;
+                    dataset.backgroundColor = chart.config.type === 'line'
+                        ? `rgba(${fillRgb}, 0.14)`
+                        : color;
+                });
+            }
+            chart.update('none');
+        });
+    }
+
+    applyChartTheme();
+
     // Helper function to destroy existing chart if it exists
     function destroyChartIfExists(chartInstance) {
         if (chartInstance) {
@@ -17,7 +52,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     }
     
-    let userGrowthChartInstance, learningActivityChartInstance, revenueChartInstance, userDemographicsChartInstance, studentEngagementChartInstance;
+    window.addEventListener('smartlearn:themechange', () => {
+        applyChartTheme([userGrowthChartInstance, learningActivityChartInstance, revenueChartInstance,
+            userDemographicsChartInstance, studentEngagementChartInstance].filter(Boolean));
+    });
 
     // User Growth Chart (Admin Dashboard)
     const userGrowthCtx = document.getElementById('userGrowthChart');
@@ -135,5 +173,8 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
     }
+
+    applyChartTheme([userGrowthChartInstance, learningActivityChartInstance, revenueChartInstance,
+        userDemographicsChartInstance, studentEngagementChartInstance].filter(Boolean));
 
 });
