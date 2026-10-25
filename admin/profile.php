@@ -34,8 +34,16 @@ if($stmt = $mysqli->prepare($sql_fetch_user)){
             $current_user_data['joined_date'] = $current_user_data['created_at']; // Use created_at for joined date
         } else {
             // Should not happen if user is logged in
-            $_SESSION['error_message'] = "Error: User data not found. Please log in again.";
-            header("location: " . BASE_URL . "auth/handle_logout.php");
+            $_SESSION = [];
+            if (ini_get('session.use_cookies')) {
+                $cookie_params = session_get_cookie_params();
+                setcookie(session_name(), '', time() - 42000,
+                    $cookie_params['path'], $cookie_params['domain'],
+                    $cookie_params['secure'], $cookie_params['httponly']
+                );
+            }
+            session_destroy();
+            header('Location: ' . BASE_URL . 'pages/login.php?error=' . urlencode('Your account could not be found. Please sign in again.'));
             exit;
         }
     } else {

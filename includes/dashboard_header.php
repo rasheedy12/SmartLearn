@@ -91,7 +91,12 @@ $logout_url = ($is_admin_dir || $is_pages_dir) ? '../auth/handle_logout.php' : '
                                 <li><a class="dropdown-item" href="<?php echo $profile_url; ?>"><i class="fas fa-user-circle fa-fw me-2"></i>Profile</a></li>
                                 <li><a class="dropdown-item" href="#"><i class="fas fa-cog fa-fw me-2"></i>Settings</a></li>
                                 <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="<?php echo $logout_url; ?>"><i class="fas fa-sign-out-alt fa-fw me-2"></i>Logout</a></li>
+                                <li>
+                                    <form action="<?php echo htmlspecialchars($logout_url, ENT_QUOTES, 'UTF-8'); ?>" method="post" class="m-0">
+                                        <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['logout_csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
+                                        <button type="submit" class="dropdown-item"><i class="fas fa-sign-out-alt fa-fw me-2"></i>Logout</button>
+                                    </form>
+                                </li>
                             </ul>
                         </li>
                     </ul>

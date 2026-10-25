@@ -149,7 +149,7 @@ include BASE_URL . 'includes/dashboard_header.php';
         <div class="card-header bg-white d-flex flex-wrap justify-content-between align-items-center gap-2">
             <h2 class="h5 mb-0">Revenue Over Time</h2>
             <div class="d-flex gap-2">
-                <form method="get">
+                <form method="get" action="reports.php">
                     <select class="form-select form-select-sm" name="period" aria-label="Revenue report period" onchange="this.form.submit()">
                         <option value="12" <?php echo $period === '12' ? 'selected' : ''; ?>>Last 12 Months</option>
                         <option value="6" <?php echo $period === '6' ? 'selected' : ''; ?>>Last 6 Months</option>

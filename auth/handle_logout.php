@@ -1,6 +1,18 @@
 <?php
 session_start(); 
 
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    http_response_code(405);
+    header('Allow: POST');
+    exit('Logout must be submitted from the dashboard.');
+}
+
+if (!isset($_POST['csrf_token'], $_SESSION['logout_csrf_token'])
+    || !hash_equals($_SESSION['logout_csrf_token'], (string) $_POST['csrf_token'])) {
+    http_response_code(403);
+    exit('Logout request could not be verified.');
+}
+
 if (!defined('BASE_URL')) {
     define('BASE_URL', '../'); // Goes up one level to the project root
 }

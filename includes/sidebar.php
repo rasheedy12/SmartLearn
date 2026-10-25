@@ -3,6 +3,9 @@
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
+if (empty($_SESSION['logout_csrf_token'])) {
+    $_SESSION['logout_csrf_token'] = bin2hex(random_bytes(32));
+}
 $user_role_sidebar = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : 'student';
 $current_page_sidebar = basename($_SERVER['PHP_SELF']);
 
@@ -48,7 +51,6 @@ $sidebar_links = [
     'account_common' => [
         ['heading' => 'Account'],
         ['label' => 'Edit Profile', 'icon' => 'fas fa-user-edit', 'link' => $base . 'profile.php'],
-        ['label' => 'Logout', 'icon' => 'fas fa-sign-out-alt', 'link' => $logout_url],
     ]
 ];
 
@@ -96,6 +98,15 @@ function render_sidebar_links_recursive($links_array, $current_page_sidebar) {
         }
     }
 }
+
+function render_logout_form($logout_url) {
+    echo '<li class="nav-item">';
+    echo '<form action="' . htmlspecialchars($logout_url, ENT_QUOTES, 'UTF-8') . '" method="post" class="m-0">';
+    echo '<input type="hidden" name="csrf_token" value="' . htmlspecialchars($_SESSION['logout_csrf_token'], ENT_QUOTES, 'UTF-8') . '">';
+    echo '<button type="submit" class="nav-link w-100 text-start">';
+    render_sidebar_icon('fas fa-sign-out-alt');
+    echo 'Logout</button></form></li>';
+}
 ?>
 
 <div class="offcanvas offcanvas-start bg-dark text-white d-lg-none" tabindex="-1" id="sidebarMenuOffcanvas" aria-labelledby="sidebarMenuOffcanvasLabel">
@@ -115,6 +126,7 @@ function render_sidebar_links_recursive($links_array, $current_page_sidebar) {
             render_sidebar_links_recursive($sidebar_links[$user_role_sidebar], $current_page_sidebar);
         }
         render_sidebar_links_recursive($sidebar_links['account_common'], $current_page_sidebar);
+        render_logout_form($logout_url);
         ?>
     </ul>
   </div>
@@ -132,6 +144,7 @@ function render_sidebar_links_recursive($links_array, $current_page_sidebar) {
             render_sidebar_links_recursive($sidebar_links[$user_role_sidebar], $current_page_sidebar);
         }
         render_sidebar_links_recursive($sidebar_links['account_common'], $current_page_sidebar);
+        render_logout_form($logout_url);
         ?>
     </ul>
 </nav>
