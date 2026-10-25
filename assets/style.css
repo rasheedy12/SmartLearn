@@ -1,6 +1,9 @@
 body {
     font-family: 'Inter', sans-serif;
     background-color: #f8f9fa; /* Default light background for most pages */
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
 }
 
 .hero-section { /* For landing page */
@@ -182,7 +185,7 @@ body {
 .btn-auth-primary:hover { background-color: #4A00E0; border-color: #4A00E0; }
 
 /* --- Dashboard Styles --- */
-.dashboard-wrapper { display: flex; min-height: 100vh; background-color: #f4f7fc; }
+.dashboard-wrapper { display: flex; flex: 1 0 auto; min-height: 100vh; background-color: #f4f7fc; }
 .sidebar { width: 260px; background-color: #343a40; color: #adb5bd; padding-top: 1.5rem; position: fixed; top: 0; bottom: 0; left: 0; z-index: 100; transition: margin-left 0.3s; overflow-y: auto; }
 .sidebar .sidebar-brand { font-size: 1.5rem; font-weight: bold; color: #fff; text-align: center; margin-bottom: 1.5rem; display: block; text-decoration: none; }
 .sidebar .sidebar-brand .logo-abbr { background-color: #6f42c1; color: white; padding: 5px 8px; border-radius: 5px; margin-right: 8px; font-size: 1.2rem;}
@@ -190,13 +193,14 @@ body {
 .sidebar .nav-link:hover, .sidebar .nav-link.active { color: #fff; background-color: #495057; border-left-color: #6f42c1; }
 .sidebar .nav-link .sidebar-icon { display: inline-block; width: 1.1rem; height: 1.1rem; margin-right: 0.75rem; vertical-align: -0.18em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .sidebar-heading { padding: 0.75rem 1.5rem 0.5rem; font-size: 0.8rem; color: #6c757d; text-transform: uppercase; letter-spacing: .05em; }
-.main-content { margin-left: 260px; flex-grow: 1; padding: 0; width: calc(100% - 260px); }
+.main-content { display: flex; flex-direction: column; margin-left: 260px; flex-grow: 1; padding: 0; width: calc(100% - 260px); min-height: 100vh; }
 .dashboard-header-custom { background-color: #fff; border-bottom: 1px solid #dee2e6; padding: 0.75rem 1.5rem; }
 .dashboard-header-custom .form-control-sm { max-width: 300px; }
 .dashboard-header-custom .nav-link { color: #495057; }
 .dashboard-header-custom .dropdown-toggle::after { display: none; }
 .user-avatar { width: 32px; height: 32px; border-radius: 50%; margin-left: 0.5rem; object-fit: cover; }
-.page-content { padding: 1.5rem; }
+.page-content { flex: 1 0 auto; padding: 1.5rem; }
+.footer { margin-top: auto; }
 
 /* General Stat Card (used across dashboards) */
 .stat-card { background-color: #fff; border-radius: 0.5rem; padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075); }

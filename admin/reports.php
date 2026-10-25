@@ -28,8 +28,8 @@ $report_revenue = 0.0;
 $revenue_by_month = [];
 try {
     $revenue_stmt = $mysqli->prepare(
-        'SELECT DATE_FORMAT(created_at, \'%Y-%m\') AS month_key, SUM(amount) AS total
-         FROM payments
+        'SELECT DATE_FORMAT(created_at, \'%Y-%m\') AS month_key, SUM(base_amount_usd) AS total
+         FROM course_payments
          WHERE payment_status = \'completed\' AND created_at >= ? AND created_at < ?
          GROUP BY month_key
          ORDER BY month_key'
@@ -45,8 +45,8 @@ try {
     }
 
     $ytd_stmt = $mysqli->prepare(
-        'SELECT COALESCE(SUM(amount), 0) AS total
-         FROM payments
+        'SELECT COALESCE(SUM(base_amount_usd), 0) AS total
+         FROM course_payments
          WHERE payment_status = \'completed\' AND created_at >= ? AND created_at < ?'
     );
     $year_start = (new DateTimeImmutable('first day of January this year'))->format('Y-m-d');

@@ -1,5 +1,4 @@
 (() => {
-    const refreshDelay = 1500;
     const submitterSelector = 'button[type="submit"], button:not([type]), input[type="submit"]';
 
     document.addEventListener('submit', (event) => {
@@ -71,9 +70,7 @@
             window.history.replaceState({}, '', url);
         }
 
-        window.setTimeout(() => {
-            window.location.reload();
-        }, refreshDelay);
+        window.location.reload();
     });
 
     window.addEventListener('pageshow', () => {
