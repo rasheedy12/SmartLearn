@@ -1,9 +1,8 @@
 <?php
 define('BASE_URL', '../');
 $page_title = "Login";
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/../includes/auth_session.php';
+smartlearn_start_secure_session();
 $status_message = ($_GET['status'] ?? '') === 'logged_out' ? 'You have been logged out.' : '';
 include '../includes/header.php';
 ?>
@@ -59,8 +58,8 @@ include '../includes/header.php';
                 <button type="submit" class="btn btn-auth-primary w-100">Sign In</button>
             </form>
             <div class="divider-text my-4">or</div>
-            <button class="btn btn-social w-100 mb-2"><i class="fab fa-google"></i> Continue with Google</button>
-            <button class="btn btn-social w-100"><i class="fab fa-microsoft"></i> Continue with Microsoft</button>
+            <a class="btn btn-social w-100 mb-2" href="<?php echo BASE_URL; ?>auth/oauth_start.php?provider=google"><i class="fab fa-google"></i> Continue with Google</a>
+            <a class="btn btn-social w-100" href="<?php echo BASE_URL; ?>auth/oauth_start.php?provider=microsoft"><i class="fab fa-microsoft"></i> Continue with Microsoft</a>
             <p class="mt-4 text-center">Don't have an account? <a href="<?php echo BASE_URL; ?>pages/register.php">Sign up for free</a></p>
         </div>
     </div>

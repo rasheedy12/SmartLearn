@@ -22,11 +22,16 @@ SmartLearn/
 ├── auth/                   # Authentication handlers
 │   ├── handle_login.php
 │   ├── handle_logout.php
-│   └── handle_register.php
+│   ├── handle_register.php
+│   ├── oauth_start.php
+│   ├── oauth_callback.php
+│   └── handle_oauth_registration.php
 ├── database/
 │   └── Smartlearn.sql      # Database schema and seed data
 ├── includes/               # Shared layout and config files
 │   ├── db_config.php
+│   ├── auth_session.php
+│   ├── oauth_helpers.php
 │   ├── header.php
 │   ├── footer.php
 │   ├── dashboard_header.php
@@ -36,6 +41,7 @@ SmartLearn/
 │   ├── index.php
 │   ├── login.php
 │   ├── register.php
+│   ├── oauth_complete.php
 │   ├── browse_courses.php
 │   ├── course_detail.php
 │   └── subscribe.php
@@ -53,7 +59,7 @@ SmartLearn/
 ```
 
 ## Requirements
-- PHP 7.4+
+- PHP 8.3+
 - MySQL or MariaDB
 - Apache or Nginx with PHP support
 - Web browser
@@ -92,6 +98,33 @@ APP_ENV=local
 ```
 
 The application now also tolerates missing Paystack settings while running on localhost so the course pages continue to load in local development.
+
+### Google and Microsoft sign-in
+
+Install the JWT verification dependency:
+
+```bash
+composer install
+```
+
+OAuth uses `firebase/php-jwt` 7.x to validate provider signatures. This requires PHP 8.3+, so upgrade older PHP deployments before installing the dependency. Apply `database/migrations/20261025_create_oauth_identities.sql` to the existing SmartLearn database. It adds provider identities while leaving the existing `users` table, passwords, roles, and permissions in place.
+
+Copy `.env.example` to `.env` and configure these OAuth values. Never commit `.env` or put client secrets in PHP source code:
+
+```env
+OAUTH_REDIRECT_URI=https://your-domain.example.com/auth/oauth_callback.php
+OAUTH_GOOGLE_CLIENT_ID=your-google-client-id
+OAUTH_GOOGLE_CLIENT_SECRET=your-google-client-secret
+OAUTH_MICROSOFT_CLIENT_ID=your-microsoft-application-client-id
+OAUTH_MICROSOFT_CLIENT_SECRET=your-microsoft-client-secret
+OAUTH_MICROSOFT_TENANT_ID=common
+```
+
+In Google Cloud Console, configure the OAuth consent screen and create a Web application OAuth client. Add the exact `OAUTH_REDIRECT_URI` as an authorized redirect URI and enable the `openid`, `email`, and `profile` scopes.
+
+In Microsoft Entra ID, register SmartLearn as a Web application, choose the supported account types you want, add the same callback URL as a Web redirect URI, and create a client secret. Set `OAUTH_MICROSOFT_TENANT_ID` to `common`, `organizations`, `consumers`, or your tenant ID to match that choice. Store the secret only in the server environment or the ignored `.env` file.
+
+Provider identities are matched by the verified OIDC issuer and subject. Google may connect an existing account only when Google marks the matching email as verified. Microsoft email claims are not used to link accounts; sign in to SmartLearn first and connect Microsoft from **My Profile → Connected sign-in methods**. New accounts choose their SmartLearn role during account completion, and instructor accounts keep the existing pending-approval behavior. Password login and registration continue to use the existing users table.
 
 ## Default Database Configuration
 The project currently uses:

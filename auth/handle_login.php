@@ -1,5 +1,6 @@
 <?php
-session_start(); 
+require_once __DIR__ . '/../includes/auth_session.php';
+smartlearn_start_secure_session();
 
 // Define BASE_URL relative to the auth_handlers directory
 if (!defined('BASE_URL')) {
@@ -49,37 +50,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     }
 
                     if(password_verify($password_attempt, $hashed_password)){
-                        // Password is correct, so start a new session
-
-                        // Regenerate session ID to prevent session fixation
-                        session_regenerate_id(true);
-
-                        // Store data in session variables
-                        $_SESSION["loggedin"] = true; // General login flag
-                        $_SESSION["user_id"] = $user_id;
-                        $_SESSION["user_name"] = $first_name . " " . $last_name;
-                        $_SESSION["user_email"] = $db_email;
-                        $_SESSION["user_role"] = $role;
-                        $_SESSION["user_avatar"] = $avatar_url ?: 'assets/images/user_avatar_placeholder.png';
-                        $_SESSION['auth_success_message'] = 'Signed in successfully.';
-
-                        // Update last login time
-                        $update_login_sql = "UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE user_id = ?";
-                        if($update_stmt = $mysqli->prepare($update_login_sql)){
-                            $update_stmt->bind_param("i", $user_id);
-                            $update_stmt->execute();
-                            $update_stmt->close();
-                        }
-
-                        // Redirect user to appropriate dashboard
-                        if ($role === "admin") {
-                            header("location: " . BASE_URL . "admin/admin_dashboard.php");
-                        } elseif ($role === "instructor") {
-                            header("location: " . BASE_URL . "admin/instructor_dashboard.php");
-                        } else { // student
-                            header("location: " . BASE_URL . "admin/student_dashboard.php");
-                        }
-                        exit;
+                        smartlearn_complete_login($mysqli, [
+                            'user_id' => $user_id,
+                            'first_name' => $first_name,
+                            'last_name' => $last_name,
+                            'email' => $db_email,
+                            'role' => $role,
+                            'avatar_url' => $avatar_url,
+                            'status' => $status,
+                        ], BASE_URL, 'Signed in successfully.');
                     } else{
                         // Password is not valid
                         header("location: " . BASE_URL . "pages/login.php?error=" . urlencode("Invalid email or password."));

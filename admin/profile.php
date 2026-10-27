@@ -16,10 +16,25 @@ require_once BASE_URL . 'includes/db_config.php';
 if (empty($_SESSION['profile_csrf_token'])) {
     $_SESSION['profile_csrf_token'] = bin2hex(random_bytes(32));
 }
+$current_user_id = $_SESSION['user_id'];
 $extra_js = [BASE_URL . 'assets/js/profile-picture.js'];
+$linked_oauth_providers = [];
+$oauth_storage_available = true;
+$oauth_links_query = $mysqli->prepare('SELECT provider FROM oauth_identities WHERE user_id = ?');
+if ($oauth_links_query) {
+    $oauth_links_query->bind_param('i', $current_user_id);
+    if ($oauth_links_query->execute()) {
+        $oauth_links_result = $oauth_links_query->get_result();
+        while ($oauth_links_result && ($oauth_link = $oauth_links_result->fetch_assoc())) {
+            $linked_oauth_providers[] = $oauth_link['provider'];
+        }
+    }
+    $oauth_links_query->close();
+} else {
+    $oauth_storage_available = false;
+}
 
 // Fetch current user data from the database
-$current_user_id = $_SESSION['user_id'];
 $current_user_data = [];
 $sql_fetch_user = "SELECT first_name, last_name, email, role, avatar_url, bio, created_at FROM users WHERE user_id = ?";
 
@@ -57,6 +72,8 @@ if($stmt = $mysqli->prepare($sql_fetch_user)){
 // Display success/error messages passed back from the handler
 $success_message = isset($_SESSION['success_message']) ? $_SESSION['success_message'] : null;
 $error_message = isset($_SESSION['error_message']) ? $_SESSION['error_message'] : null;
+$oauth_success_message = ($_GET['oauth'] ?? '') === 'connected' ? 'Sign-in provider connected to your account.' : null;
+$oauth_error_message = trim((string) ($_GET['oauth_error'] ?? ''));
 $profile_form_data = $_SESSION['profile_form_data'] ?? [];
 unset($_SESSION['profile_form_data']);
 unset($_SESSION['success_message']); // Clear after displaying
@@ -79,6 +96,37 @@ include BASE_URL . 'includes/dashboard_header.php';
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     <?php endif; ?>
+    <?php if ($oauth_success_message): ?>
+        <div class="alert alert-success" role="status"><?php echo htmlspecialchars($oauth_success_message, ENT_QUOTES, 'UTF-8'); ?></div>
+    <?php endif; ?>
+    <?php if ($oauth_error_message !== ''): ?>
+        <div class="alert alert-danger" role="alert"><?php echo htmlspecialchars($oauth_error_message, ENT_QUOTES, 'UTF-8'); ?></div>
+    <?php endif; ?>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-white"><h5 class="mb-0">Connected sign-in methods</h5></div>
+        <div class="card-body">
+            <p class="text-muted">Connect a provider while signed in to this SmartLearn account. Your current role and account details stay in SmartLearn.</p>
+            <?php if (!$oauth_storage_available): ?>
+                <div class="alert alert-warning mb-0">Run the OAuth identities database migration before connecting a provider.</div>
+            <?php else: ?>
+                <div class="d-flex flex-wrap gap-2">
+                    <?php foreach (['google' => 'Google', 'microsoft' => 'Microsoft'] as $provider_key => $provider_label): ?>
+                        <?php if (in_array($provider_key, $linked_oauth_providers, true)): ?>
+                            <span class="btn btn-outline-secondary disabled" aria-disabled="true"><i class="fab fa-<?php echo $provider_key === 'google' ? 'google' : 'microsoft'; ?> me-2"></i><?php echo $provider_label; ?> connected</span>
+                        <?php else: ?>
+                            <form action="<?php echo BASE_URL; ?>auth/oauth_start.php" method="POST" class="d-inline">
+                                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['profile_csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
+                                <input type="hidden" name="provider" value="<?php echo htmlspecialchars($provider_key, ENT_QUOTES, 'UTF-8'); ?>">
+                                <input type="hidden" name="intent" value="link">
+                                <button class="btn btn-outline-primary" type="submit"><i class="fab fa-<?php echo $provider_key === 'google' ? 'google' : 'microsoft'; ?> me-2"></i>Connect <?php echo $provider_label; ?></button>
+                            </form>
+                        <?php endif; ?>
+                    <?php endforeach; ?>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
 
     <div class="row">
         <div class="col-lg-4 mb-4">

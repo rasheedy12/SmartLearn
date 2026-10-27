@@ -1,5 +1,6 @@
 <?php
-session_start(); 
+require_once __DIR__ . '/../includes/auth_session.php';
+smartlearn_start_secure_session();
 
 if (!defined('BASE_URL')) {
     define('BASE_URL', '../');

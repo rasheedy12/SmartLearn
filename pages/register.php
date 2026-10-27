@@ -1,8 +1,7 @@
 <?php
 define('BASE_URL', '../');
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/../includes/auth_session.php';
+smartlearn_start_secure_session();
 if (empty($_SESSION['registration_csrf_token'])) {
     $_SESSION['registration_csrf_token'] = bin2hex(random_bytes(32));
 }
@@ -48,8 +47,8 @@ unset($_SESSION['register_errors'], $_SESSION['register_form_data']);
             <form action="<?php echo BASE_URL; ?>auth/handle_register.php" method="POST">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['registration_csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
                 <div class="d-grid gap-2 mb-3">
-                    <button type="button" class="btn btn-social"><i class="fab fa-google"></i> Sign up with Google</button>
-                    <button type="button" class="btn btn-social"><i class="fab fa-microsoft"></i> Sign up with Microsoft</button>
+                    <a class="btn btn-social" href="<?php echo BASE_URL; ?>auth/oauth_start.php?provider=google&amp;intent=register"><i class="fab fa-google"></i> Sign up with Google</a>
+                    <a class="btn btn-social" href="<?php echo BASE_URL; ?>auth/oauth_start.php?provider=microsoft&amp;intent=register"><i class="fab fa-microsoft"></i> Sign up with Microsoft</a>
                 </div>
                 <div class="divider-text my-3">or</div>
 
