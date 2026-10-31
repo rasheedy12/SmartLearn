@@ -180,13 +180,13 @@ include BASE_URL . 'includes/dashboard_header.php';
             </a>
         </div>
         <div class="col-xl-3 col-md-6 mb-4">
-            <a class="text-decoration-none text-reset" href="<?php echo INSTRUCTOR_ADMIN_URL; ?>students_list.php">
+            <a class="text-decoration-none text-reset" href="<?php echo INSTRUCTOR_ADMIN_URL; ?>notifications.php">
                 <div class="stat-card h-100">
                     <div class="d-flex justify-content-between align-items-center">
                         <h6>Unread Messages</h6><i class="fas fa-envelope icon-lg text-info"></i>
                     </div>
                     <div class="stat-value"><?php echo $unread_messages; ?></div>
-                    <div class="stat-meta"><span class="text-info">View your student roster</span></div>
+                    <div class="stat-meta"><span class="text-info">View unread messages</span></div>
                 </div>
             </a>
         </div>

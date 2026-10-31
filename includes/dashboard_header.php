@@ -43,7 +43,23 @@ $current_dir = str_replace('\\', '/', $current_dir);
 $is_admin_dir = $current_dir === '/admin' || $current_dir === 'admin';
 $is_pages_dir = $current_dir === '/pages' || $current_dir === 'pages';
 $profile_url = $is_admin_dir ? 'profile.php' : ($is_pages_dir ? '../admin/profile.php' : 'admin/profile.php');
+$notification_url = $is_admin_dir ? 'notifications.php' : ($is_pages_dir ? '../admin/notifications.php' : 'admin/notifications.php');
 $logout_url = ($is_admin_dir || $is_pages_dir) ? '../auth/handle_logout.php' : 'auth/handle_logout.php';
+$unread_notification_count = 0;
+if (isset($_SESSION['user_id']) && isset($mysqli) && $mysqli instanceof mysqli) {
+    try {
+        $notification_count_stmt = $mysqli->prepare(
+            'SELECT COUNT(*) AS unread_count FROM notifications WHERE user_id = ? AND is_read = 0'
+        );
+        $notification_user_id = (int) $_SESSION['user_id'];
+        $notification_count_stmt->bind_param('i', $notification_user_id);
+        $notification_count_stmt->execute();
+        $unread_notification_count = (int) $notification_count_stmt->get_result()->fetch_assoc()['unread_count'];
+        $notification_count_stmt->close();
+    } catch (Throwable $exception) {
+        error_log('Dashboard notification count failed: ' . $exception->getMessage());
+    }
+}
 
 ?><!DOCTYPE html>
 <html lang="en">
@@ -85,9 +101,11 @@ $logout_url = ($is_admin_dir || $is_pages_dir) ? '../auth/handle_logout.php' : '
                             <?php smartlearn_theme_toggle(); ?>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="#" title="Notifications">
+                            <a class="nav-link" href="<?php echo htmlspecialchars($notification_url, ENT_QUOTES, 'UTF-8'); ?>" title="Notifications" aria-label="Notifications<?php echo $unread_notification_count > 0 ? ', ' . $unread_notification_count . ' unread' : ''; ?>">
                                 <i class="fas fa-bell fs-5"></i>
-                                <span class="badge rounded-pill bg-danger" style="position: relative; top: -10px; left: -5px; font-size: 0.65em;">3</span>
+                                <?php if ($unread_notification_count > 0): ?>
+                                    <span class="badge rounded-pill bg-danger" style="position: relative; top: -10px; left: -5px; font-size: 0.65em;"><?php echo $unread_notification_count > 99 ? '99+' : $unread_notification_count; ?></span>
+                                <?php endif; ?>
                             </a>
                         </li>
                         <li class="nav-item dropdown">
