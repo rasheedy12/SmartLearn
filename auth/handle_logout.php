@@ -34,7 +34,14 @@ if (ini_get("session.use_cookies")) {
 // Finally, destroy the session.
 session_destroy();
 
-// Redirect to login page with a logged out status message
-header("Location: " . BASE_URL . "pages/login.php?status=logged_out");
+// Start a fresh anonymous session for a one-time logout notice.
+smartlearn_start_secure_session();
+session_regenerate_id(true);
+$_SESSION['logout_success_message'] = 'You have been logged out.';
+
+// Finish the POST with an immediate GET so refresh/back cannot resubmit logout.
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Location: ' . BASE_URL . 'pages/login.php', true, 303);
 exit;
 ?>

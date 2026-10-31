@@ -3,7 +3,13 @@ define('BASE_URL', '../');
 $page_title = "Login";
 require_once __DIR__ . '/../includes/auth_session.php';
 smartlearn_start_secure_session();
-$status_message = ($_GET['status'] ?? '') === 'logged_out' ? 'You have been logged out.' : '';
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+if (empty($_SESSION['login_csrf_token'])) {
+    $_SESSION['login_csrf_token'] = bin2hex(random_bytes(32));
+}
+$status_message = (string) ($_SESSION['logout_success_message'] ?? '');
+unset($_SESSION['logout_success_message']);
 include '../includes/header.php';
 ?>
 
@@ -38,6 +44,7 @@ include '../includes/header.php';
             ?>
 
             <form action="<?php echo BASE_URL; ?>auth/handle_login.php" method="POST">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($_SESSION['login_csrf_token'], ENT_QUOTES, 'UTF-8'); ?>">
                 <div class="mb-3">
                     <label for="email" class="form-label">Email address</label>
                     <input type="email" class="form-control" id="email" name="email" placeholder="Enter your email" required>

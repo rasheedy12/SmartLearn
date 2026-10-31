@@ -2,16 +2,15 @@
 define('BASE_URL', '../');
 $page_title = "My Profile";
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+require_once __DIR__ . '/../includes/auth_session.php';
+smartlearn_start_secure_session();
 
 if (!isset($_SESSION['loggedin'], $_SESSION['user_id']) || $_SESSION['loggedin'] !== true) {
     header('Location: ' . BASE_URL . 'pages/login.php');
     exit;
 }
 
-require_once BASE_URL . 'includes/db_config.php';
+require_once __DIR__ . '/../includes/db_config.php';
 
 if (empty($_SESSION['profile_csrf_token'])) {
     $_SESSION['profile_csrf_token'] = bin2hex(random_bytes(32));
@@ -20,17 +19,22 @@ $current_user_id = $_SESSION['user_id'];
 $extra_js = [BASE_URL . 'assets/js/profile-picture.js'];
 $linked_oauth_providers = [];
 $oauth_storage_available = true;
-$oauth_links_query = $mysqli->prepare('SELECT provider FROM oauth_identities WHERE user_id = ?');
-if ($oauth_links_query) {
-    $oauth_links_query->bind_param('i', $current_user_id);
-    if ($oauth_links_query->execute()) {
-        $oauth_links_result = $oauth_links_query->get_result();
-        while ($oauth_links_result && ($oauth_link = $oauth_links_result->fetch_assoc())) {
-            $linked_oauth_providers[] = $oauth_link['provider'];
+try {
+    $oauth_links_query = $mysqli->prepare('SELECT provider FROM oauth_identities WHERE user_id = ?');
+    if ($oauth_links_query) {
+        $oauth_links_query->bind_param('i', $current_user_id);
+        if ($oauth_links_query->execute()) {
+            $oauth_links_result = $oauth_links_query->get_result();
+            while ($oauth_links_result && ($oauth_link = $oauth_links_result->fetch_assoc())) {
+                $linked_oauth_providers[] = $oauth_link['provider'];
+            }
         }
+        $oauth_links_query->close();
+    } else {
+        $oauth_storage_available = false;
     }
-    $oauth_links_query->close();
-} else {
+} catch (Throwable $exception) {
+    error_log('Profile OAuth identity lookup failed: ' . $exception->getMessage());
     $oauth_storage_available = false;
 }
 
@@ -79,7 +83,7 @@ unset($_SESSION['profile_form_data']);
 unset($_SESSION['success_message']); // Clear after displaying
 unset($_SESSION['error_message']); // Clear after displaying
 
-include BASE_URL . 'includes/dashboard_header.php';
+include __DIR__ . '/../includes/dashboard_header.php';
 ?>
 <div class="container-fluid">
     <p class="lead mb-4">Manage your account details, preferences, and security settings.</p>
@@ -229,4 +233,4 @@ include BASE_URL . 'includes/dashboard_header.php';
         </div>
     </div>
 </div>
-<?php include '../includes/dashboard_footer.php'; ?>
+<?php include __DIR__ . '/../includes/dashboard_footer.php'; ?>

@@ -3,6 +3,9 @@
 if (session_status() == PHP_SESSION_NONE) { // Start session if not already started
     session_start();
 }
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
 include_once __DIR__ . '/theme_toggle.php';
 
 define('BASE_URL_INC', file_exists(dirname(__FILE__) . '/../index.php') ? '../' : './'); // Determine the correct project root from the current include location
@@ -62,7 +65,7 @@ $logout_url = ($is_admin_dir || $is_pages_dir) ? '../auth/handle_logout.php' : '
 </head>
 <body>
     <div class="dashboard-wrapper">
-        <?php include 'sidebar.php'; // Include the sidebar ?>
+        <?php include __DIR__ . '/sidebar.php'; // Include the sidebar ?>
         <div class="main-content">
             <nav class="navbar navbar-expand-lg navbar-light dashboard-header-custom">
                 <div class="container-fluid">
